@@ -1,6 +1,7 @@
 {
     "target": {
         "name": "codal-microbit-v2",
+        "type": "git",
 
 	// "url": "https://github.com/lancaster-university/codal-microbit-v2",
         // "branch": "34bf4b004a1b6c54abd60201a35b1985c25d4730",
@@ -8,7 +9,6 @@
 	"url": "https://github.com/attila-lendvai-patches/codal-microbit-v2",
         "branch": "master",
 
-        "type": "git",
         "branches": {
             // "https://github.com/lancaster-university/codal-core": "3d485abf65d7e692aa51e9611d37689ebaa59e00",
             "https://github.com/attila-lendvai-patches/codal-core.git": "master",
@@ -22,6 +22,7 @@
     "config":{
 	"DMESG_SERIAL_DEBUG": 0,
 	"MICROBIT_DMESG_LEVEL": 0,
+	"CODAL_DEBUG": 0,
 	// Whether to compile in the BLE services.
 	// ! Must do a clean build after changing it: ./build.py --clean
         "DEVICE_BLE": 1,
@@ -32,6 +33,7 @@
         "MICROBIT_BLE_DEVICE_INFORMATION_SERVICE": 1,
         "MICROBIT_BLE_EVENT_SERVICE" : 1,
         "MICROBIT_BLE_PARTIAL_FLASHING" : 0,
-        "MICROBIT_BLE_OPEN": 1
+        "MICROBIT_BLE_OPEN": 1,
+        "MICROBIT_TRIPLE_RESET_TO_PAIR": 0
     },
 }
