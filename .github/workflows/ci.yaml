@@ -50,5 +50,12 @@ jobs:
 
       - run:  ./build.py
 
+      - name: Upload build results
+        uses: actions/upload-artifact@v4
+        with:
+          name: MicroBit firmware
+          path: |
+            MICROBIT.*
+
       - name: Run hextract tests
         run: bash tests/hextract-tests.sh
