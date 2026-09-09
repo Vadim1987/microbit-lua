@@ -44,13 +44,20 @@ end
 local function hl(x)
   local l = x % 256
   local h = (x - l) / 256
-  return h, l
+  return char(h)..char(l)
 end
 
 function tpbot.run_distance(mm)
   if mm ~= 0 then
     local d, f = abs(mm, 3)
-    local h, l = hl(d)
-    send(65, char(h)..char(l)..char(f))
+    send(65, hl(d)..char(f))
+  end
+end
+
+function tpbot.turn(deg)
+  if deg ~= 0 then
+    local d, f = abs(deg, 1)
+    local hl = hl(d)
+    send(66, hl..hl..char(f + 1))
   end
 end
