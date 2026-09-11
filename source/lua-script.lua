@@ -244,7 +244,6 @@ local function make_session(transport)
 end
 
 local serial_session = make_session({
-  write = serial_write,
   crlf_before_result = true,
   getChar = serial.getCharAsync,
   arm = function() serial.eventAfterAsync(1) end
@@ -281,7 +280,7 @@ handler[microbit.DEVICE_ID_SERIAL] = function(value)
         local input = keypress[c]
         if input then
           if #echo > 0 then
-            serial_write(echo)
+            write(echo)
             echo = ""
           end
           input()
@@ -292,7 +291,7 @@ handler[microbit.DEVICE_ID_SERIAL] = function(value)
         c = serial_session.transport.getChar()
       end
       if #echo > 0 then
-        serial_write(echo)
+        write(echo)
       end
       serial_session.transport.arm()
     end)
@@ -300,7 +299,6 @@ handler[microbit.DEVICE_ID_SERIAL] = function(value)
 end
 
 -- TPBot Edu library
-assert(loadstring[[
 -- Based on https://github.com/elecfreaks/pxt-TPBot/blob/master/V2.ts
 local getPin = microbit.io.getPin
 
@@ -310,10 +308,10 @@ tpbot = {
 }
 
 local char = string.char
-local write = microbit.i2c.write
+local i2c_write = microbit.i2c.write
 
 local function send(command, params)
-  write(32, "\255\249"..char(command)..
+  i2c_write(32, "\255\249"..char(command)..
     char(string.len(params))..params)
 end
 
@@ -363,7 +361,6 @@ function tpbot.turn(deg)
     send(66, hl..hl..char(f + 1))
   end
 end
-]])()
 
 local function button(value, btn)
   if value == microbit.DEVICE_BUTTON_EVT_CLICK then
