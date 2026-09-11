@@ -323,10 +323,18 @@ local function abs(x, n)
   return math.abs(x), x < 0 and n or 0
 end
 
-function tpbot.set_motors_speed(left, right)
+local function set_motors_speed(left, right)
   local l, d = abs(left, 1)
   local r, e = abs(right, 2)
   send(16, char(l)..char(r)..char(d + e))
+end
+
+tpbot.set_motors_speed = set_motors_speed
+
+function robot_move(left, right, time)
+  set_motors_speed(left, right)
+  microbit.sleep(1000 * time)
+  set_motors_speed(0, 0)
 end
 
 local read_digital = microbit.io.getDigitalValue
