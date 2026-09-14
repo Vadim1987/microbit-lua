@@ -891,6 +891,119 @@ extern MicroBitUARTService *uart;
 
 #define LUA_I2C_COUNT 2
 
+
+/*
+ * A link over radio datagrams.
+ *
+ * Datagrams are 32 bytes and anyone on the group hears them
+ * all, so a frame says what it is and which link it belongs
+ * to. The link number is drawn by the side that calls
+ * connect; two pairs on one group draw different numbers and
+ * ignore each other's traffic. A name is always the five
+ * letters of a micro:bit's friendly name, so HELLO carries
+ * both ends' names in a fixed ten bytes.
+ */
+
+#define RADIO_HEAD     2
+#define RADIO_NAME     5
+#define RADIO_BODY     (32 - RADIO_HEAD)
+
+#define RADIO_HELLO    1
+#define RADIO_WELCOME  2
+
+static uint8_t radio_link = 0;
+static char radio_peer[RADIO_NAME + 1];
+
+/* kind, link, then body */
+static int radio_put(uint8_t kind, uint8_t link,
+                     const char *body, int len)
+{
+    uint8_t f[32];
+    if (len > RADIO_BODY) len = RADIO_BODY;
+    f[0] = kind;
+    f[1] = link;
+    if (len > 0) memcpy(f + RADIO_HEAD, body, len);
+    return uBit.radio.datagram.send(
+        PacketBuffer(f, len + RADIO_HEAD));
+}
+
+/* The next frame of this kind for this link, or nothing.
+ * Anything else on the group is dropped. */
+static bool radio_take(uint8_t kind, uint8_t link,
+                       uint8_t *from, uint8_t *body, int *len)
+{
+    PacketBuffer p = uBit.radio.datagram.recv();
+    if (p == PacketBuffer::EmptyPacket) return false;
+    if (p.length() < RADIO_HEAD) return false;
+    uint8_t *b = p.getBytes();
+    if (b[0] != kind) return false;
+    if (link != 0 && b[1] != link) return false;
+    if (from) *from = b[1];
+    if (body) memcpy(body, b + RADIO_HEAD, p.length() - RADIO_HEAD);
+    if (len) *len = p.length() - RADIO_HEAD;
+    return true;
+}
+
+/* connect(friendlyName, timeout_ms) -> boolean */
+static int radio_connect(lua_State *L)
+{
+    size_t n;
+    const char *them = luaL_checklstring(L, 1, &n);
+    int timeout = luaL_checkint(L, 2);
+    const char *us = microbit_friendly_name();
+    char hello[RADIO_NAME * 2];
+    uint8_t link = (uint8_t)(uBit.random(255) + 1);
+    uint64_t deadline = uBit.systemTime() + timeout;
+
+    if (n != RADIO_NAME) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    memcpy(hello, them, RADIO_NAME);
+    memcpy(hello + RADIO_NAME, us, RADIO_NAME);
+
+    while (uBit.systemTime() < deadline) {
+        radio_put(RADIO_HELLO, link, hello, sizeof(hello));
+        uint64_t answer = uBit.systemTime() + 30;
+        while (uBit.systemTime() < answer) {
+            if (radio_take(RADIO_WELCOME, link, NULL, NULL, NULL)) {
+                radio_link = link;
+                memcpy(radio_peer, them, RADIO_NAME);
+                radio_peer[RADIO_NAME] = 0;
+                lua_pushboolean(L, 1);
+                return 1;
+            }
+            uBit.sleep(1);
+        }
+    }
+    lua_pushboolean(L, 0);
+    return 1;
+}
+
+/* listen() -> friendlyName of whoever connected */
+static int radio_listen(lua_State *L)
+{
+    const char *us = microbit_friendly_name();
+    uint8_t body[RADIO_BODY];
+    uint8_t link;
+    int len;
+
+    while (true) {
+        if (radio_take(RADIO_HELLO, 0, &link, body, &len)
+            && len == RADIO_NAME * 2
+            && memcmp(body, us, RADIO_NAME) == 0)
+        {
+            radio_link = link;
+            memcpy(radio_peer, body + RADIO_NAME, RADIO_NAME);
+            radio_peer[RADIO_NAME] = 0;
+            radio_put(RADIO_WELCOME, link, NULL, 0);
+            lua_pushstring(L, radio_peer);
+            return 1;
+        }
+        uBit.sleep(1);
+    }
+}
+
 #define LUA_RADIO_FUNCTIONS						\
     X(setTransmitPower, {						\
                     int power = luaL_checkint(L, 1);			\
@@ -937,9 +1050,11 @@ extern MicroBitUARTService *uart;
                       PacketBuffer((uint8_t*)buffer, len));		\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
-                  })
+                  })							\
+    X(connect,    { return radio_connect(L); })				\
+    X(listen,     { return radio_listen(L); })
 
-#define LUA_RADIO_COUNT 8
+#define LUA_RADIO_COUNT 10
 
 #define LUA_CODAL_CONSTANTS \
     X(MICROBIT_ID_LOGO) \
