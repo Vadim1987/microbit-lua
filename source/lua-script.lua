@@ -23,7 +23,13 @@ local serial = {
   eventAfterAsync = uBit.serial.eventAfterAsync,
 }
 
+-- Output goes wherever the session being served takes it.
+-- The serial session names no other way out, so it falls to
+-- the port.
 local function write(s)
+  local session = active_session
+  local out = session and session.transport.send
+  if out then return out(s) end
   for c in string.gmatch(s, ".") do
     if c == "\n" then
       serial.send("\r")
@@ -394,6 +400,76 @@ function on_event(source, value, timestamp)
   local handle = handler[source]
   if handle then
     handle(value, timestamp)
+  end
+end
+
+
+-- A REPL over a radio link, and the other end of it.
+--
+-- listen(name) waits for that board to call, then serves it:
+-- what arrives over the link is typed into a session of its
+-- own, and what the session says goes back the same way.
+--
+-- connect(name, timeout) calls, then carries the port over:
+-- what is typed here goes out, what comes back is printed.
+
+local radio_session = make_session({
+  crlf_before_result = false,
+  send = function(text) microbit.radio.tx(text) end
+})
+
+
+-- A piece of the link, as much or as little as arrived: what
+-- stands before a line ending is entered, what follows it
+-- waits for the rest to come.
+local function typed(piece)
+  local at = string.find(piece, "[\r\n]")
+  while at do
+    radio_session.buffer =
+      radio_session.buffer .. piece:sub(1, at - 1)
+    radio_session.submit("")
+    piece = piece:sub(at + 1)
+    at = string.find(piece, "[\r\n]")
+  end
+  radio_session.buffer = radio_session.buffer .. piece
+end
+
+function listen(name)
+  while microbit.radio.listen() ~= name do end
+  radio_session.buffer = ""
+  radio_session.run(radio_session.prompt)
+  while true do
+    local piece = microbit.radio.rx()
+    if piece then
+      radio_session.run(function() typed(piece) end)
+    end
+    microbit.sleep(5)
+  end
+end
+
+-- Whatever has been typed since the last look
+local function typing()
+  local chars = { }
+  local c = serial.getCharAsync()
+  while c do
+    chars[#chars + 1] = c
+    c = serial.getCharAsync()
+  end
+  return table.concat(chars)
+end
+
+function connect(name, timeout)
+  if not microbit.radio.connect(name, timeout) then
+    print("Connection timed out.")
+    return
+  end
+  print(name .. " connected.")
+  while true do
+    local text = typing()
+    if #text > 0 then microbit.radio.tx(text) end
+    local m = microbit.radio.rx()
+    if m then write(m) end
+    microbit.sleep(2)
   end
 end
 
