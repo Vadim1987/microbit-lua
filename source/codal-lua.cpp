@@ -906,7 +906,13 @@ extern MicroBitUARTService *uart;
 
 #define RADIO_HEAD     3
 #define RADIO_NAME     5
-#define RADIO_BODY     (32 - RADIO_HEAD)
+/* The radio is documented to carry 32 bytes and the driver
+ * reports as many sent, but past 29 the tail arrives zeroed:
+ * measured between two boards, 28 and 29 come through whole,
+ * 30 loses its last byte and 31 and 32 lose two. So a frame
+ * is 29, and the driver's own limit is never reached. */
+#define RADIO_FRAME    29
+#define RADIO_BODY     (RADIO_FRAME - RADIO_HEAD)
 
 #define RADIO_HELLO    1
 #define RADIO_WELCOME  2
@@ -925,7 +931,7 @@ static uint8_t radio_in = 0;    /* number of the last taken */
 static int radio_put(uint8_t kind, uint8_t link, uint8_t num,
                      const char *body, int len)
 {
-    uint8_t f[32];
+    uint8_t f[RADIO_FRAME];
     if (len > RADIO_BODY) len = RADIO_BODY;
     f[0] = kind;
     f[1] = link;
@@ -935,22 +941,23 @@ static int radio_put(uint8_t kind, uint8_t link, uint8_t num,
         PacketBuffer(f, len + RADIO_HEAD));
 }
 
-/* The next frame of this kind for this link, or nothing.
- * Anything else on the group is dropped. */
 /* A frame taken off the air that the caller did not want.
  * Reading a datagram removes it, so one asked for DATA while
  * an ACK is due would throw the ACK away and leave the
- * sender waiting out its tries. Whoever finds it keeps it
- * here for whoever wants it. */
-static uint8_t radio_held[32];
+ * sender waiting out its tries. It waits here instead, until
+ * somebody wants it or another unwanted one takes its
+ * place. */
+static uint8_t radio_held[RADIO_FRAME];
 static int radio_held_len = 0;
 
+/* Is this frame the one being waited for, and if so, what
+ * does it carry? Anything longer than a frame is not ours. */
 static bool radio_wanted(uint8_t *b, int n, uint8_t kind,
                          uint8_t link, uint8_t *from,
                          uint8_t *num, uint8_t *body,
                          int *len)
 {
-    if (n < RADIO_HEAD) return false;
+    if (n < RADIO_HEAD || n > RADIO_FRAME) return false;
     if (b[0] != kind) return false;
     if (link != 0 && b[1] != link) return false;
     if (from) *from = b[1];
@@ -960,15 +967,16 @@ static bool radio_wanted(uint8_t *b, int n, uint8_t kind,
     return true;
 }
 
+/* The next frame of this kind for this link, or nothing */
 static bool radio_take(uint8_t kind, uint8_t link,
                        uint8_t *from, uint8_t *num,
                        uint8_t *body, int *len)
 {
-    if (radio_held_len > 0) {
-        int n = radio_held_len;
+    if (radio_held_len > 0
+        && radio_wanted(radio_held, radio_held_len, kind,
+                        link, from, num, body, len)) {
         radio_held_len = 0;
-        if (radio_wanted(radio_held, n, kind, link, from,
-                         num, body, len)) return true;
+        return true;
     }
     PacketBuffer p = uBit.radio.datagram.recv();
     if (p == PacketBuffer::EmptyPacket) return false;
