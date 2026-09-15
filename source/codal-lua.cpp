@@ -937,28 +937,56 @@ static int radio_put(uint8_t kind, uint8_t link, uint8_t num,
 
 /* The next frame of this kind for this link, or nothing.
  * Anything else on the group is dropped. */
-static bool radio_take(uint8_t kind, uint8_t link,
-                       uint8_t *from, uint8_t *num,
-                       uint8_t *body, int *len)
+/* A frame taken off the air that the caller did not want.
+ * Reading a datagram removes it, so one asked for DATA while
+ * an ACK is due would throw the ACK away and leave the
+ * sender waiting out its tries. Whoever finds it keeps it
+ * here for whoever wants it. */
+static uint8_t radio_held[32];
+static int radio_held_len = 0;
+
+static bool radio_wanted(uint8_t *b, int n, uint8_t kind,
+                         uint8_t link, uint8_t *from,
+                         uint8_t *num, uint8_t *body,
+                         int *len)
 {
-    PacketBuffer p = uBit.radio.datagram.recv();
-    if (p == PacketBuffer::EmptyPacket) return false;
-    if (p.length() < RADIO_HEAD) return false;
-    uint8_t *b = p.getBytes();
+    if (n < RADIO_HEAD) return false;
     if (b[0] != kind) return false;
     if (link != 0 && b[1] != link) return false;
     if (from) *from = b[1];
     if (num) *num = b[2];
-    int n = p.length() - RADIO_HEAD;
-    if (body) memcpy(body, b + RADIO_HEAD, n);
-    if (len) *len = n;
+    if (body) memcpy(body, b + RADIO_HEAD, n - RADIO_HEAD);
+    if (len) *len = n - RADIO_HEAD;
     return true;
+}
+
+static bool radio_take(uint8_t kind, uint8_t link,
+                       uint8_t *from, uint8_t *num,
+                       uint8_t *body, int *len)
+{
+    if (radio_held_len > 0) {
+        int n = radio_held_len;
+        radio_held_len = 0;
+        if (radio_wanted(radio_held, n, kind, link, from,
+                         num, body, len)) return true;
+    }
+    PacketBuffer p = uBit.radio.datagram.recv();
+    if (p == PacketBuffer::EmptyPacket) return false;
+    int n = p.length();
+    if (radio_wanted(p.getBytes(), n, kind, link, from,
+                     num, body, len)) return true;
+    if (n > 0 && n <= (int)sizeof(radio_held)) {
+        memcpy(radio_held, p.getBytes(), n);
+        radio_held_len = n;
+    }
+    return false;
 }
 
 /* Both ends start a link the same way */
 static void radio_open(uint8_t link, const char *peer)
 {
     radio_link = link;
+    radio_held_len = 0;
     radio_out = 0;
     radio_in = 0;
     memcpy(radio_peer, peer, RADIO_NAME);
