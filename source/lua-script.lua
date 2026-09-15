@@ -277,8 +277,15 @@ local keypress = {
   ["\127"] = backspace
 }
 
+-- Set while connect() has the port: what is typed goes over
+-- the link instead of into the console's own session.
+local relaying = false
+local relay
+local typed_here = ""
+
 handler[microbit.DEVICE_ID_SERIAL] = function(value)
   if value == microbit.CODAL_SERIAL_EVT_HEAD_MATCH then
+    if relaying then return relay() end
     serial_session.run(function()
       local c = serial_session.transport.getChar()
       local echo = ""
@@ -384,6 +391,12 @@ local function button(value, btn)
   end
 end
 
+handler[microbit.DEVICE_ID_RADIO] = function()
+  if not relaying then return end
+  local piece = microbit.radio.rx()
+  if piece then write(piece) end
+end
+
 handler[microbit.DEVICE_ID_BUTTON_A] = function(value)
   button(value, "A")
 end
@@ -458,19 +471,35 @@ local function typing()
   return table.concat(chars)
 end
 
+-- The port's turn: what was typed goes over the link, and
+-- the port is armed for the next lot. Called from the serial
+-- handler, so nothing else is reading the same characters.
+-- The port's turn. A line at a time goes over the link: tx
+-- waits to be answered, and a character each would spend
+-- that wait while the next ones pile up in the port. So the
+-- typing is echoed as it comes and held until its line is
+-- whole.
+relay = function()
+  local text = typing()
+  serial.eventAfterAsync(1)
+  write(text)
+  typed_here = typed_here .. text
+  local at = string.find(typed_here, "[\r\n]")
+  while at do
+    microbit.radio.tx(typed_here:sub(1, at))
+    typed_here = typed_here:sub(at + 1)
+    at = string.find(typed_here, "[\r\n]")
+  end
+end
+
 function connect(name, timeout)
   if not microbit.radio.connect(name, timeout) then
     print("Connection timed out.")
     return
   end
   print(name .. " connected.")
-  while true do
-    local text = typing()
-    if #text > 0 then microbit.radio.tx(text) end
-    local m = microbit.radio.rx()
-    if m then write(m) end
-    microbit.sleep(2)
-  end
+  typed_here = ""
+  relaying = true
 end
 
 -- Script-level setup (runs once before the main fiber
