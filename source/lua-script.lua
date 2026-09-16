@@ -277,15 +277,14 @@ local keypress = {
   ["\127"] = backspace
 }
 
--- Set while connect() has the port: what is typed goes over
--- the link instead of into the console's own session.
-local relaying = false
-local relay
+-- Whoever has the port serves it: the console's own session
+-- to start with, the link once connect() has opened one.
+-- connect puts the other one in place; nothing asks which.
+local port_to_link
 local typed_here = ""
 
-handler[microbit.DEVICE_ID_SERIAL] = function(value)
+local function port_to_console(value)
   if value == microbit.CODAL_SERIAL_EVT_HEAD_MATCH then
-    if relaying then return relay() end
     serial_session.run(function()
       local c = serial_session.transport.getChar()
       local echo = ""
@@ -310,6 +309,8 @@ handler[microbit.DEVICE_ID_SERIAL] = function(value)
     end)
   end
 end
+
+handler[microbit.DEVICE_ID_SERIAL] = port_to_console
 
 -- TPBot Edu library
 -- Based on https://github.com/elecfreaks/pxt-TPBot/blob/master/V2.ts
@@ -389,12 +390,6 @@ local function button(value, btn)
    elseif value == microbit.DEVICE_BUTTON_EVT_LONG_CLICK then
       uBit.display.scroll(btn .. "!")
   end
-end
-
-handler[microbit.DEVICE_ID_RADIO] = function()
-  if not relaying then return end
-  local piece = microbit.radio.rx()
-  if piece then write(piece) end
 end
 
 handler[microbit.DEVICE_ID_BUTTON_A] = function(value)
@@ -483,15 +478,14 @@ local function typing()
   return table.concat(chars)
 end
 
--- The port's turn: what was typed goes over the link, and
--- the port is armed for the next lot. Called from the serial
--- handler, so nothing else is reading the same characters.
--- The port's turn. A line at a time goes over the link: tx
--- waits to be answered, and a character each would spend
--- that wait while the next ones pile up in the port. So the
--- typing is echoed as it comes and held until its line is
--- whole.
-relay = function()
+-- A line at a time goes over the link: tx waits to be
+-- answered, and a character each would spend that wait while
+-- the next ones pile up in the port. So the typing is echoed
+-- as it comes and held until its line is whole.
+port_to_link = function(value)
+  if value ~= microbit.CODAL_SERIAL_EVT_HEAD_MATCH then
+    return
+  end
   local text = typing()
   serial.eventAfterAsync(1)
   write(text)
@@ -504,6 +498,12 @@ relay = function()
   end
 end
 
+--- What the link says goes to the port
+local function link_to_port()
+  local piece = microbit.radio.rx()
+  if piece then write(piece) end
+end
+
 function connect(name, timeout)
   microbit.radio.enable()
   if not microbit.radio.connect(name, timeout) then
@@ -512,7 +512,8 @@ function connect(name, timeout)
   end
   print(name .. " connected.")
   typed_here = ""
-  relaying = true
+  handler[microbit.DEVICE_ID_SERIAL] = port_to_link
+  handler[microbit.DEVICE_ID_RADIO] = link_to_port
 end
 
 -- Script-level setup (runs once before the main fiber
