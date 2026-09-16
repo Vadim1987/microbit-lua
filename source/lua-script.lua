@@ -419,6 +419,9 @@ end
 
 -- A REPL over a radio link, and the other end of it.
 --
+-- Both turn the radio on themselves; the group is the one
+-- every micro:bit starts in.
+--
 -- listen(name) waits for that board to call, then serves it:
 -- what arrives over the link is typed into a session of its
 -- own, and what the session says goes back the same way.
@@ -448,6 +451,7 @@ local function typed(piece)
 end
 
 function listen(name)
+  microbit.radio.enable()
   while microbit.radio.listen() ~= name do end
   radio_session.buffer = ""
   radio_session.run(radio_session.prompt)
@@ -493,6 +497,7 @@ relay = function()
 end
 
 function connect(name, timeout)
+  microbit.radio.enable()
   if not microbit.radio.connect(name, timeout) then
     print("Connection timed out.")
     return
