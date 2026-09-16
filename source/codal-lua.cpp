@@ -922,6 +922,9 @@ extern MicroBitUARTService *uart;
 #define RADIO_TRIES    8
 #define RADIO_WAIT     30
 
+/* How long connect waits when nobody says otherwise */
+#define RADIO_TIMEOUT  5000
+
 static uint8_t radio_link = 0;
 static char radio_peer[RADIO_NAME + 1];
 static uint8_t radio_out = 0;   /* number of the last sent */
@@ -1019,7 +1022,7 @@ static bool radio_called(uint8_t link, const char *hello)
 static int radio_connect(lua_State *L)
 {
     const char *them = luaL_checkstring(L, 1);
-    int timeout = luaL_checkint(L, 2);
+    int timeout = luaL_optint(L, 2, RADIO_TIMEOUT);
     char hello[RADIO_NAME * 2];
     uint8_t link = (uint8_t)(uBit.random(255) + 1);
     uint64_t deadline = uBit.systemTime() + timeout;
@@ -1039,26 +1042,43 @@ static int radio_connect(lua_State *L)
     return 1;
 }
 
-/* listen() -> friendlyName of whoever connected */
-static int radio_listen(lua_State *L)
+/* A HELLO addressed to this board: answer it and take the
+ * link it names. Any link it replaces is dropped — the other
+ * end has started over, which is how a reset board finds its
+ * way back. */
+static bool radio_called_us(void)
 {
     const char *us = microbit_friendly_name();
     uint8_t body[RADIO_BODY];
     uint8_t link;
     int len;
 
-    while (true) {
-        if (radio_take(RADIO_HELLO, 0, &link, NULL, body, &len)
-            && len == RADIO_NAME * 2
-            && memcmp(body, us, RADIO_NAME) == 0)
-        {
-            radio_open(link, (char *)body + RADIO_NAME);
-            radio_put(RADIO_WELCOME, link, 0, NULL, 0);
-            lua_pushstring(L, radio_peer);
-            return 1;
-        }
-        uBit.sleep(1);
+    if (!radio_take(RADIO_HELLO, 0, &link, NULL, body, &len)
+        || len != RADIO_NAME * 2
+        || memcmp(body, us, RADIO_NAME) != 0) return false;
+    radio_open(link, (char *)body + RADIO_NAME);
+    radio_put(RADIO_WELCOME, link, 0, NULL, 0);
+    return true;
+}
+
+/* listen() -> friendlyName of whoever connected */
+static int radio_listen(lua_State *L)
+{
+    while (!radio_called_us()) uBit.sleep(1);
+    lua_pushstring(L, radio_peer);
+    return 1;
+}
+
+/* answered() -> friendlyName if somebody has just called
+ * again, or nil */
+static int radio_answered(lua_State *L)
+{
+    if (!radio_called_us()) {
+        lua_pushnil(L);
+        return 1;
     }
+    lua_pushstring(L, radio_peer);
+    return 1;
 }
 
 
@@ -1185,9 +1205,10 @@ static int radio_rx(lua_State *L)
     X(connect,    { return radio_connect(L); })				\
     X(listen,     { return radio_listen(L); })				\
     X(tx,         { return radio_tx(L); })				\
-    X(rx,         { return radio_rx(L); })
+    X(rx,         { return radio_rx(L); })				\
+    X(answered,   { return radio_answered(L); })
 
-#define LUA_RADIO_COUNT 12
+#define LUA_RADIO_COUNT 13
 
 #define LUA_CODAL_CONSTANTS \
     X(MICROBIT_ID_LOGO) \

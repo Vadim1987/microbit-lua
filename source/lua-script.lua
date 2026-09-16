@@ -420,7 +420,9 @@ end
 -- A REPL over a radio link, and the other end of it.
 --
 -- Both turn the radio on themselves; the group is the one
--- every micro:bit starts in.
+-- every micro:bit starts in. A board that calls again — one
+-- that was reset, or lost the link — is taken as it comes,
+-- and the session starts over for it.
 --
 -- listen(name) waits for that board to call, then serves it:
 -- what arrives over the link is typed into a session of its
@@ -450,12 +452,18 @@ local function typed(piece)
   radio_session.buffer = radio_session.buffer .. piece
 end
 
+--- A fresh session for a caller that has just arrived
+local function greet()
+  radio_session.buffer = ""
+  radio_session.run(radio_session.prompt)
+end
+
 function listen(name)
   microbit.radio.enable()
   while microbit.radio.listen() ~= name do end
-  radio_session.buffer = ""
-  radio_session.run(radio_session.prompt)
+  greet()
   while true do
+    if microbit.radio.answered() then greet() end
     local piece = microbit.radio.rx()
     if piece then
       radio_session.run(function() typed(piece) end)
