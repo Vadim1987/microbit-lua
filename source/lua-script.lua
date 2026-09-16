@@ -277,10 +277,6 @@ local keypress = {
   ["\127"] = backspace
 }
 
--- Whoever has the port serves it: the console's own session
--- to start with, the link once connect() has opened one.
--- connect puts the other one in place; nothing asks which.
-local port_to_link
 local typed_here = ""
 
 local function port_to_console(value)
@@ -478,23 +474,25 @@ local function typing()
   return table.concat(chars)
 end
 
+-- Whoever has the port serves it: the console's own session
+-- to start with, the link once connect() has opened one.
+-- connect puts the other one in place; nothing asks which.
 -- A line at a time goes over the link: tx waits to be
 -- answered, and a character each would spend that wait while
 -- the next ones pile up in the port. So the typing is echoed
 -- as it comes and held until its line is whole.
-port_to_link = function(value)
-  if value ~= microbit.CODAL_SERIAL_EVT_HEAD_MATCH then
-    return
-  end
-  local text = typing()
-  serial.eventAfterAsync(1)
-  write(text)
-  typed_here = typed_here .. text
-  local at = string.find(typed_here, "[\r\n]")
-  while at do
-    microbit.radio.tx(typed_here:sub(1, at))
-    typed_here = typed_here:sub(at + 1)
-    at = string.find(typed_here, "[\r\n]")
+local function port_to_link(value)
+  if value == microbit.CODAL_SERIAL_EVT_HEAD_MATCH then
+    local text = typing()
+    serial.eventAfterAsync(1)
+    write(text)
+    typed_here = typed_here .. text
+    local at = string.find(typed_here, "[\r\n]")
+    while at do
+      microbit.radio.tx(typed_here:sub(1, at))
+      typed_here = typed_here:sub(at + 1)
+      at = string.find(typed_here, "[\r\n]")
+    end
   end
 end
 
