@@ -380,6 +380,18 @@ function tpbot.turn(deg)
   end
 end
 
+function turn(h)
+  h = h % 12
+  if 6 < h then
+    h = h - 12
+  end
+  tpbot.turn(-30 * h)
+end
+
+function straight(l)
+  tpbot.run_distance(110 * l)
+end
+
 local function button(value, btn)
   if value == microbit.DEVICE_BUTTON_EVT_CLICK then
       uBit.display.scroll(btn)
