@@ -18,32 +18,32 @@ extern MicroBit uBit;
 I2C &i2c = uBit.i2c;
 
 #define LUA_MICROBIT_FUNCTIONS						\
-    X(reset,      { uBit.reset();					\
+    F(reset,      { uBit.reset();					\
                     return 0;						\
                   })							\
-    X(sleep,      { uint32_t ms = (uint32_t)luaL_checkinteger(L, 1);	\
+    F(sleep,      { uint32_t ms = (uint32_t)luaL_checkinteger(L, 1);	\
                     uBit.sleep(ms);					\
                     return 0;						\
                   })							\
-    X(seedRandom, { uint32_t seed = (uint32_t)luaL_optinteger(L, 1, 0);	\
+    F(seedRandom, { uint32_t seed = (uint32_t)luaL_optinteger(L, 1, 0);	\
                     if(seed) { uBit.seedRandom(seed); }			\
                     else { uBit.seedRandom(); }				\
                     return 0;						\
 		  })							\
-    X(random,     { int max = (int)luaL_checkinteger(L, 1);		\
+    F(random,     { int max = (int)luaL_checkinteger(L, 1);		\
                     lua_pushinteger(L, (lua_Integer)uBit.random(max));	\
                     return 1;						\
                   })							\
-    X(systemTime, { lua_pushinteger(L, (lua_Integer)uBit.systemTime());	\
+    F(systemTime, { lua_pushinteger(L, (lua_Integer)uBit.systemTime());	\
                     return 1;						\
                   })							\
-    X(serialNumber, { lua_pushinteger(L, microbit_serial_number());	\
+    F(serialNumber, { lua_pushinteger(L, microbit_serial_number());	\
                     return 1;						\
                   })							\
-    X(friendlyName, { lua_pushstring(L, microbit_friendly_name());	\
+    F(friendlyName, { lua_pushstring(L, microbit_friendly_name());	\
                     return 1;						\
                   })							\
-    X(panic,      { int statusCode = (int)luaL_checkinteger(L, 1);      \
+    F(panic,      { int statusCode = (int)luaL_checkinteger(L, 1);      \
                     microbit_panic(statusCode);				\
                     return 0;						\
                   })
@@ -98,87 +98,87 @@ Image luaL_checkimage(lua_State *L, int narg) {
 
 // see https://rneacy.dev/mbv2/ubit/display/
 #define LUA_DISPLAY_FUNCTIONS						\
-    X(getWidth,   { lua_pushinteger(L, uBit.display.getWidth());	\
+    F(getWidth,   { lua_pushinteger(L, uBit.display.getWidth());	\
                     return 1;						\
                   })							\
-    X(getHeight,  { lua_pushinteger(L, uBit.display.getHeight());	\
+    F(getHeight,  { lua_pushinteger(L, uBit.display.getHeight());	\
                     return 1;						\
                   })							\
-    X(setBrightness, { int b = luaL_checkint(L, 1);			\
+    F(setBrightness, { int b = luaL_checkint(L, 1);			\
                     int r = uBit.display.setBrightness(b);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(getBrightness, { int r = uBit.display.getBrightness();		\
+    F(getBrightness, { int r = uBit.display.getBrightness();		\
                     lua_pushinteger(L, r);				\
                     return 1;						\
                   })							\
-    X(enable,     { uBit.display.enable();				\
+    F(enable,     { uBit.display.enable();				\
                     return 0;						\
                   })							\
-    X(disable,     { uBit.display.disable();				\
+    F(disable,     { uBit.display.disable();				\
                     return 0;						\
                   })							\
-    X(screenShot, { ImageData *ptr =					\
+    F(screenShot, { ImageData *ptr =					\
                       uBit.display.screenShot().leakData();		\
                     lua_createimage(L, ptr);				\
                     ptr->decr();					\
                     return 1;						\
                   })							\
-    X(setDisplayMode, { DisplayMode mode = 				\
+    F(setDisplayMode, { DisplayMode mode = 				\
                       static_cast<DisplayMode>(luaL_checkinteger(L, 1));\
                     uBit.display.setDisplayMode(mode);			\
                     return 0;						\
                   })							\
-    X(getDisplayMode, { DisplayMode mode =				\
+    F(getDisplayMode, { DisplayMode mode =				\
                       uBit.display.getDisplayMode();			\
                     lua_pushinteger(L, static_cast<lua_Integer>(mode));	\
                     return 1;						\
                   })							\
-    X(clear,      { uBit.display.clear();				\
+    F(clear,      { uBit.display.clear();				\
                     return 0;						\
                   })							\
-    X(readLightLevel, { int r = uBit.display.readLightLevel();		\
+    F(readLightLevel, { int r = uBit.display.readLightLevel();		\
                     lua_pushinteger(L, r);				\
                     return 1;						\
                   })							\
-    X(setSleep,   { NRF52LEDMatrix display = uBit.display;		\
+    F(setSleep,   { NRF52LEDMatrix display = uBit.display;		\
                     luaL_checkany(L, 1);				\
                     display.setSleep(lua_toboolean(L, 1) != 0);		\
                     return 0;						\
                   })							\
-    X(stopAnimation, { uBit.display.stopAnimation();			\
+    F(stopAnimation, { uBit.display.stopAnimation();			\
                     return 0;						\
                   })							\
-    X(printAsync, { const char *s = luaL_checkstring(L, 1);		\
+    F(printAsync, { const char *s = luaL_checkstring(L, 1);		\
                     int delay = luaL_optint(L, 2,			\
                       DISPLAY_DEFAULT_PRINT_SPEED);			\
                     int r = uBit.display.printAsync(s, delay);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(print,      { const char *s = luaL_checkstring(L, 1);		\
+    F(print,      { const char *s = luaL_checkstring(L, 1);		\
                     int delay = luaL_optint(L, 2,			\
                       DISPLAY_DEFAULT_PRINT_SPEED);			\
                     int r = uBit.display.print(s, delay);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(scrollAsync, { const char *s = luaL_checkstring(L, 1);		\
+    F(scrollAsync, { const char *s = luaL_checkstring(L, 1);		\
                     int delay = luaL_optint(L, 2,			\
                       DISPLAY_DEFAULT_SCROLL_SPEED);			\
                     int r = uBit.display.scrollAsync(s, delay);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(scroll,     { const char *s = luaL_checkstring(L, 1);		\
+    F(scroll,     { const char *s = luaL_checkstring(L, 1);		\
                     int delay = luaL_optint(L, 2,			\
                       DISPLAY_DEFAULT_SCROLL_SPEED);			\
                     int r = uBit.display.scroll(s, delay);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(animateAsync, { Image image = luaL_checkimage(L, 1);		\
+    F(animateAsync, { Image image = luaL_checkimage(L, 1);		\
                     int delay = luaL_checkint(L, 2);			\
                     int stride = luaL_checkint(L, 3);			\
                     int startingPosition =				\
@@ -193,7 +193,7 @@ Image luaL_checkimage(lua_State *L, int narg) {
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(animate,    { Image image = luaL_checkimage(L, 1);		\
+    F(animate,    { Image image = luaL_checkimage(L, 1);		\
                     int delay = luaL_checkint(L, 2);			\
                     int stride = luaL_checkint(L, 3);			\
                     int startingPosition =				\
@@ -208,7 +208,7 @@ Image luaL_checkimage(lua_State *L, int narg) {
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(setPixelValue, {							\
+    F(setPixelValue, {							\
                     uint16_t x = (uint16_t)luaL_checkint(L, 1);		\
                     uint16_t y = (uint16_t)luaL_checkint(L, 2);		\
                     uint8_t value = (uint8_t)luaL_checkint(L, 3);	\
@@ -217,7 +217,7 @@ Image luaL_checkimage(lua_State *L, int narg) {
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(getPixelValue, {							\
+    F(getPixelValue, {							\
                     uint16_t x = (uint16_t)luaL_checkint(L, 1);		\
                     uint16_t y = (uint16_t)luaL_checkint(L, 2);		\
                     int r = uBit.display.image.getPixelValue(x, y);	\
@@ -230,46 +230,46 @@ Image luaL_checkimage(lua_State *L, int narg) {
 
 // see https://rneacy.dev/mbv2/ubit/accelerometer/
 #define LUA_ACCELEROMETER_FUNCTIONS					\
-    X(setPeriod,  { int period = luaL_checkint(L, 1);			\
+    F(setPeriod,  { int period = luaL_checkint(L, 1);			\
                     int r = uBit.accelerometer.setPeriod(period);	\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(getPeriod,  { int r = uBit.accelerometer.getPeriod();		\
+    F(getPeriod,  { int r = uBit.accelerometer.getPeriod();		\
                     lua_pushinteger(L, r);				\
                     return 1;						\
                   })							\
-    X(setRange,   { int range = luaL_checkint(L, 1);			\
+    F(setRange,   { int range = luaL_checkint(L, 1);			\
                     int r = uBit.accelerometer.setRange(range);		\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(getRange,   { int r = uBit.accelerometer.getRange();		\
+    F(getRange,   { int r = uBit.accelerometer.getRange();		\
                     lua_pushinteger(L, r);				\
                     return 1;						\
                   })							\
-    X(configure,  { int r = uBit.accelerometer.configure();		\
+    F(configure,  { int r = uBit.accelerometer.configure();		\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(requestUpdate, { int r = uBit.accelerometer.requestUpdate();	\
+    F(requestUpdate, { int r = uBit.accelerometer.requestUpdate();	\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(getSample,  { Sample3D sample = uBit.accelerometer.getSample();	\
+    F(getSample,  { Sample3D sample = uBit.accelerometer.getSample();	\
                     lua_pushinteger(L, sample.x);			\
                     lua_pushinteger(L, sample.y);			\
                     lua_pushinteger(L, sample.z);			\
                     return 3;						\
                   })							\
-    X(getGesture, { uint16_t r = uBit.accelerometer.getGesture();	\
+    F(getGesture, { uint16_t r = uBit.accelerometer.getGesture();	\
                     lua_pushinteger(L, r);				\
                     return 1;						\
                   })
 
 // see https://rneacy.dev/mbv2/ubit/compass/
 #define LUA_COMPASS_FUNCTIONS						\
-    X(heading,     { int r = uBit.compass.heading();			\
+    F(heading,     { int r = uBit.compass.heading();			\
                      if(r == DEVICE_CALIBRATION_IN_PROGRESS) {		\
                        lua_pushnil(L);					\
                      } else {						\
@@ -277,15 +277,15 @@ Image luaL_checkimage(lua_State *L, int narg) {
                      }							\
                      return 1;						\
                    })							\
-    X(getFieldStrength, { int r = uBit.compass.getFieldStrength();	\
+    F(getFieldStrength, { int r = uBit.compass.getFieldStrength();	\
                      lua_pushinteger(L, r);				\
                      return 1;						\
                    })							\
-    X(calibrate,   { int r = uBit.compass.calibrate();			\
+    F(calibrate,   { int r = uBit.compass.calibrate();			\
                      lua_pushboolean(L, r == MICROBIT_OK);		\
                      return 1;						\
                    })							\
-    X(setCalibration, { CompassCalibration cc = CompassCalibration();	\
+    F(setCalibration, { CompassCalibration cc = CompassCalibration();	\
                      cc.centre.x = luaL_optint(L, 1, 0);		\
                      cc.centre.y = luaL_optint(L, 2, 0);		\
                      cc.centre.z = luaL_optint(L, 3, 0);		\
@@ -296,7 +296,7 @@ Image luaL_checkimage(lua_State *L, int narg) {
                      uBit.compass.setCalibration(cc);			\
                      return 0;						\
                    })							\
-    X(getCalibration, { CompassCalibration cc =				\
+    F(getCalibration, { CompassCalibration cc =				\
                        uBit.compass.getCalibration();			\
                      lua_pushinteger(L, cc.centre.x);			\
                      lua_pushinteger(L, cc.centre.y);			\
@@ -307,39 +307,39 @@ Image luaL_checkimage(lua_State *L, int narg) {
                      lua_pushinteger(L, cc.radius);			\
                      return 7;						\
                    })							\
-    X(isCalibrated, { int r = uBit.compass.isCalibrated();		\
+    F(isCalibrated, { int r = uBit.compass.isCalibrated();		\
                      lua_pushboolean(L, r);				\
                      return 1;						\
                    })							\
-    X(isCalibrating, { int r = uBit.compass.isCalibrating();		\
+    F(isCalibrating, { int r = uBit.compass.isCalibrating();		\
                      lua_pushboolean(L, r);				\
                      return 1;						\
                    })							\
-    X(clearCalibration, { uBit.compass.clearCalibration();		\
+    F(clearCalibration, { uBit.compass.clearCalibration();		\
                      return 0;						\
                    })							\
-    X(configure,   { int r = uBit.compass.configure();			\
+    F(configure,   { int r = uBit.compass.configure();			\
                      lua_pushboolean(L, r == MICROBIT_OK);		\
                      return 1;						\
                    })							\
-    X(setPeriod,   { int period = luaL_checkint(L, 1);			\
+    F(setPeriod,   { int period = luaL_checkint(L, 1);			\
                      int r = uBit.compass.setPeriod(period);		\
                      lua_pushboolean(L, r == MICROBIT_OK);		\
                      return 1;						\
                    })							\
-    X(getPeriod,   { int r = uBit.compass.getPeriod();			\
+    F(getPeriod,   { int r = uBit.compass.getPeriod();			\
                      lua_pushinteger(L, r);				\
                      return 1;						\
                    })							\
-    X(requestUpdate, { int r = uBit.compass.requestUpdate();		\
+    F(requestUpdate, { int r = uBit.compass.requestUpdate();		\
                      lua_pushboolean(L, r == MICROBIT_OK);		\
                      return 1;						\
                    })							\
-    X(update,      { int r = uBit.compass.update();			\
+    F(update,      { int r = uBit.compass.update();			\
                      lua_pushboolean(L, r == MICROBIT_OK);		\
                      return 1;						\
                    })							\
-    X(getSample,  { Sample3D sample = uBit.compass.getSample();		\
+    F(getSample,  { Sample3D sample = uBit.compass.getSample();		\
                     lua_pushinteger(L, sample.x);			\
                     lua_pushinteger(L, sample.y);			\
                     lua_pushinteger(L, sample.z);			\
@@ -347,19 +347,19 @@ Image luaL_checkimage(lua_State *L, int narg) {
                   })
 
 #define LUA_AUDIO_FUNCTIONS						\
-    X(getAudioPin, { lua_pushlightuserdata(L,				\
+    F(getAudioPin, { lua_pushlightuserdata(L,				\
                       &uBit.audio.virtualOutputPin);			\
                     return 1;						\
                   })							\
-    X(setVolume,  { int volume = luaL_checkint(L, 1);			\
+    F(setVolume,  { int volume = luaL_checkint(L, 1);			\
                     int r = uBit.audio.setVolume(volume);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(getVolume,  { lua_pushinteger(L, uBit.audio.getVolume());		\
+    F(getVolume,  { lua_pushinteger(L, uBit.audio.getVolume());		\
                     return 1;						\
                   })							\
-    X(express,    { const char *expression = luaL_checkstring(L, 1);	\
+    F(express,    { const char *expression = luaL_checkstring(L, 1);	\
                     uBit.audio.soundExpressions.playAsync(expression);	\
                     return 0;						\
                   })
@@ -370,14 +370,14 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
 }
 
 #define LUA_IO_FUNCTIONS						\
-    X(setDigitalValue, { 						\
+    F(setDigitalValue, { 						\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int value = luaL_checkint(L, 2);			\
                     int r = pin->setDigitalValue(value);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(getDigitalValue, {						\
+    F(getDigitalValue, {						\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->getDigitalValue();			\
                     if(r == 0 || r == 1) {				\
@@ -387,14 +387,14 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(setAnalogValue, {							\
+    F(setAnalogValue, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int value = luaL_checkint(L, 2);			\
                     int r = pin->setAnalogValue(value);			\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(setServoValue, {							\
+    F(setServoValue, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int value = luaL_checkint(L, 2);			\
                     int range = luaL_optint(L, 3,			\
@@ -405,7 +405,7 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(getAnalogValue, {							\
+    F(getAnalogValue, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->getAnalogValue();			\
                     if(r >= 0 || r <= 1024) {				\
@@ -415,27 +415,27 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(isInput,    { Pin *pin = luaL_checkPin(L, 1);			\
+    F(isInput,    { Pin *pin = luaL_checkPin(L, 1);			\
                     lua_pushboolean(L, pin->isInput() == 1);		\
                     return 1;						\
                   })							\
-    X(isOutput,   { Pin *pin = luaL_checkPin(L, 1);			\
+    F(isOutput,   { Pin *pin = luaL_checkPin(L, 1);			\
                     lua_pushboolean(L, pin->isOutput() == 1);		\
                     return 1;						\
                   })							\
-    X(isDigital,  { Pin *pin = luaL_checkPin(L, 1);			\
+    F(isDigital,  { Pin *pin = luaL_checkPin(L, 1);			\
                     lua_pushboolean(L, pin->isDigital() == 1);		\
                     return 1;						\
                   })							\
-    X(isAnalog,   { Pin *pin = luaL_checkPin(L, 1);			\
+    F(isAnalog,   { Pin *pin = luaL_checkPin(L, 1);			\
                     lua_pushboolean(L, pin->isAnalog() == 1);		\
                     return 1;						\
                   })							\
-    X(isTouched,  { Pin *pin = luaL_checkPin(L, 1);			\
+    F(isTouched,  { Pin *pin = luaL_checkPin(L, 1);			\
                     lua_pushboolean(L, pin->isTouched() == 1);		\
                     return 1;						\
                   })							\
-    X(setServoPulseUs, {						\
+    F(setServoPulseUs, {						\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     uint32_t pulseWidth =				\
                       (uint32_t)luaL_checkinteger(L, 2); 		\
@@ -443,14 +443,14 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(setAnalogPeriod, {						\
+    F(setAnalogPeriod, {						\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int period = luaL_checkint(L, 2);			\
                     int r = pin->setAnalogPeriod(period);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(setAnalogPeriodUs, {						\
+    F(setAnalogPeriodUs, {						\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     uint32_t period =					\
                       (uint32_t)luaL_checkinteger(L, 2);		\
@@ -458,7 +458,7 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(getAnalogPeriodUs, {						\
+    F(getAnalogPeriodUs, {						\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     uint32_t r = pin->getAnalogPeriodUs();		\
                     if((int)r != DEVICE_NOT_SUPPORTED) {		\
@@ -468,7 +468,7 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(getAnalogPeriod, {						\
+    F(getAnalogPeriod, {						\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->getAnalogPeriod();			\
                     if(r != DEVICE_NOT_SUPPORTED) {			\
@@ -478,29 +478,29 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(setPullUp,  { Pin *pin = luaL_checkPin(L, 1);			\
+    F(setPullUp,  { Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->setPull((PullMode)PullUp);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(setPullDown, {							\
+    F(setPullDown, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->setPull((PullMode)PullDown);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(setPullNone, {							\
+    F(setPullNone, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->setPull((PullMode)PullNone);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(drainPin,   { Pin *pin = luaL_checkPin(L, 1);			\
+    F(drainPin,   { Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->drainPin();				\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(pulseUs,    { Pin *pin = luaL_checkPin(L, 1);			\
+    F(pulseUs,    { Pin *pin = luaL_checkPin(L, 1);			\
                     int value = luaL_checkint(L, 2);			\
                     uint64_t width_us = luaL_checklong(L, 3);		\
                     int r = pin->setDigitalValue(value);		\
@@ -515,7 +515,7 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(getPulseUs, { Pin *pin = luaL_checkPin(L, 1);			\
+    F(getPulseUs, { Pin *pin = luaL_checkPin(L, 1);			\
                     int timeout = luaL_checkint(L, 2);			\
                     int r = pin->getPulseUs(timeout);			\
                     if(r != DEVICE_CANCELLED) {				\
@@ -525,60 +525,60 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(eventOnEdge, {							\
+    F(eventOnEdge, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->eventOn(DEVICE_PIN_EVENT_ON_EDGE);	\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(eventOnPulse, {							\
+    F(eventOnPulse, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->eventOn(DEVICE_PIN_EVENT_ON_PULSE);	\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(eventOnTouch, {							\
+    F(eventOnTouch, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->eventOn(DEVICE_PIN_EVENT_ON_TOUCH);	\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(eventNone,  { Pin *pin = luaL_checkPin(L, 1);			\
+    F(eventNone,  { Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->eventOn(DEVICE_PIN_EVENT_NONE);	\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(isActive,   { Pin *pin = luaL_checkPin(L, 1);			\
+    F(isActive,   { Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->isActive();				\
                     lua_pushboolean(L, r == 1);				\
                     return 1;						\
                   })							\
-    X(setPolarity, {							\
+    F(setPolarity, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int polarity = luaL_checkint(L, 2);			\
                     pin->setPolarity(polarity);				\
                     return 0;						\
                   })							\
-    X(getPolarity, {							\
+    F(getPolarity, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     lua_pushinteger(L, pin->getPolarity());		\
                     return 1;						\
                   })							\
-    X(setActiveHi, {							\
+    F(setActiveHi, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     pin->setActiveHi();					\
                     return 0;						\
                   })							\
-    X(setActiveLo, {							\
+    F(setActiveLo, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     pin->setActiveLo();					\
                     return 0;						\
                   })							\
-    X(disconnect, { Pin *pin = luaL_checkPin(L, 1);			\
+    F(disconnect, { Pin *pin = luaL_checkPin(L, 1);			\
                     pin->disconnect();					\
                     return 0;						\
                   })							\
-    X(getPin,     { int pin = luaL_checkint(L, 1);			\
+    F(getPin,     { int pin = luaL_checkint(L, 1);			\
                     lua_pushlightuserdata(L, &uBit.io.pin[pin]);	\
                     return 1;						\
                   })
@@ -594,7 +594,7 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
 }
 
 #define LUA_SERIAL_FUNCTIONS						\
-    X(send,       { ManagedString s = luaL_checkManagedString(L, 1);	\
+    F(send,       { ManagedString s = luaL_checkManagedString(L, 1);	\
                     int r = uBit.serial.send(s, SYNC_SLEEP);		\
                     if(r != DEVICE_SERIAL_IN_USE &&			\
                        r != DEVICE_INVALID_PARAMETER) {			\
@@ -604,7 +604,7 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(sendAsync,  { ManagedString s = luaL_checkManagedString(L, 1);	\
+    F(sendAsync,  { ManagedString s = luaL_checkManagedString(L, 1);	\
                     int r = uBit.serial.send(s, ASYNC);			\
                     if(r != DEVICE_SERIAL_IN_USE &&			\
                        r != DEVICE_INVALID_PARAMETER) {			\
@@ -614,11 +614,11 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(getByte,    { int r = uBit.serial.getChar(SYNC_SLEEP);		\
+    F(getByte,    { int r = uBit.serial.getChar(SYNC_SLEEP);		\
                     lua_pushinteger(L, r);				\
                     return 1;						\
                   })							\
-    X(getByteAsync, {							\
+    F(getByteAsync, {							\
                     int r = uBit.serial.getChar(ASYNC);			\
                     if(r != DEVICE_NO_DATA) {				\
                       lua_pushinteger(L, r);				\
@@ -627,11 +627,11 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(getChar,    { char r = (char)uBit.serial.getChar(SYNC_SLEEP);	\
+    F(getChar,    { char r = (char)uBit.serial.getChar(SYNC_SLEEP);	\
                     lua_pushlstring(L, &r, 1);				\
                     return 1;						\
                   })							\
-    X(getCharAsync, {							\
+    F(getCharAsync, {							\
                     int r = uBit.serial.getChar(ASYNC);			\
                     if(r != DEVICE_NO_DATA) {				\
                       char c = (char)r;					\
@@ -641,52 +641,52 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(read,       { int size = luaL_checkint(L, 1);			\
+    F(read,       { int size = luaL_checkint(L, 1);			\
                     lua_pushManagedString(L,				\
                       uBit.serial.read(size, SYNC_SLEEP));		\
                     return 1;						\
                   })							\
-    X(readAsync,  { int size = luaL_checkint(L, 1);			\
+    F(readAsync,  { int size = luaL_checkint(L, 1);			\
                     lua_pushManagedString(L,				\
                       uBit.serial.read(size, ASYNC));			\
                     return 1;						\
                   })							\
-    X(readUntil,  { ManagedString delimiters =				\
+    F(readUntil,  { ManagedString delimiters =				\
                       luaL_checkManagedString(L, 1);			\
                     lua_pushManagedString(L,				\
                       uBit.serial.readUntil(delimiters, SYNC_SLEEP));	\
                     return 1;						\
                   })							\
-    X(setBaud,    { int baudrate = luaL_checkint(L, 1);			\
+    F(setBaud,    { int baudrate = luaL_checkint(L, 1);			\
                     int r = uBit.serial.setBaud(baudrate);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(redirect,   { Pin *tx = luaL_checkPin(L, 1);			\
+    F(redirect,   { Pin *tx = luaL_checkPin(L, 1);			\
                     Pin *rx = luaL_checkPin(L, 2);			\
                     int r = uBit.serial.redirect(*tx, *rx);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(eventAfter, { uBit.serial.eventAfter(luaL_checkint(L, 1),		\
+    F(eventAfter, { uBit.serial.eventAfter(luaL_checkint(L, 1),		\
                                            SYNC_SLEEP);			\
                     return 0;						\
                   })							\
-    X(eventAfterAsync, {						\
+    F(eventAfterAsync, {						\
                     uBit.serial.eventAfter(luaL_checkint(L, 1),		\
                                            ASYNC);			\
                     return 0;						\
                   })							\
-    X(eventOn,    { uBit.serial.eventOn(luaL_checkManagedString(L, 1),	\
+    F(eventOn,    { uBit.serial.eventOn(luaL_checkManagedString(L, 1),	\
                                            SYNC_SLEEP);			\
                     return 0;						\
                   })							\
-    X(eventOnAsync, {							\
+    F(eventOnAsync, {							\
                     uBit.serial.eventOn(luaL_checkManagedString(L, 1),	\
                                            ASYNC);			\
                     return 0;						\
                   })							\
-    X(isReadable, { int r = uBit.serial.isReadable();			\
+    F(isReadable, { int r = uBit.serial.isReadable();			\
                     if(r == 0 || r == 1) {				\
                       lua_pushboolean(L, r == 1);			\
                     } else {						\
@@ -694,53 +694,53 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
                     }							\
                     return 1;						\
                   })							\
-    X(isWriteable, {							\
+    F(isWriteable, {							\
                     lua_pushboolean(L, uBit.serial.isWriteable() == 1);	\
                     return 1;						\
                   })							\
-    X(setRxBufferSize, {						\
+    F(setRxBufferSize, {						\
                     uint8_t size = luaL_checkint(L, 1);			\
                     int r = uBit.serial.setRxBufferSize(size);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(setTxBufferSize, {						\
+    F(setTxBufferSize, {						\
                     uint8_t size = luaL_checkint(L, 1);			\
                     int r = uBit.serial.setTxBufferSize(size);		\
                     lua_pushboolean(L, r == DEVICE_OK);			\
                     return 1;						\
                   })							\
-    X(getRxBufferSize, {						\
+    F(getRxBufferSize, {						\
                     lua_pushinteger(L, uBit.serial.getRxBufferSize());	\
                     return 1;						\
                   })							\
-    X(getTxBufferSize, {						\
+    F(getTxBufferSize, {						\
                     lua_pushinteger(L, uBit.serial.getTxBufferSize());	\
                     return 1;						\
                   })							\
-    X(clearRxBuffer, {							\
+    F(clearRxBuffer, {							\
                     lua_pushboolean(L,					\
                       uBit.serial.clearRxBuffer() == DEVICE_OK);	\
                     return 1;						\
                   })							\
-    X(clearTxBuffer, {							\
+    F(clearTxBuffer, {							\
                     lua_pushboolean(L,					\
                       uBit.serial.clearTxBuffer() == DEVICE_OK);	\
                     return 1;						\
                   })							\
-    X(rxBufferedSize, {							\
+    F(rxBufferedSize, {							\
                     lua_pushinteger(L, uBit.serial.rxBufferedSize());	\
                     return 1;						\
                   })							\
-    X(txBufferedSize, {							\
+    F(txBufferedSize, {							\
                     lua_pushinteger(L,uBit.serial.txBufferedSize());	\
                     return 1;						\
                   })							\
-    X(rxInUse,    { lua_pushboolean(L,					\
+    F(rxInUse,    { lua_pushboolean(L,					\
                       uBit.serial.rxInUse() != 0);			\
                     return 1;						\
                   })							\
-    X(txInUse,    { lua_pushboolean(L,					\
+    F(txInUse,    { lua_pushboolean(L,					\
                       uBit.serial.txInUse() != 0);			\
                     return 1;						\
                   })
@@ -751,7 +751,7 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
 extern MicroBitUARTService *uart;
 
 #define LUA_BLE_FUNCTIONS						\
-    X(send,       { if(!uart) { lua_pushnil(L); return 1; }		\
+    F(send,       { if(!uart) { lua_pushnil(L); return 1; }		\
                     ManagedString s = luaL_checkManagedString(L, 1);	\
                     int r = uart->send(s, SYNC_SLEEP);			\
                     if(r != DEVICE_SERIAL_IN_USE &&			\
@@ -762,7 +762,7 @@ extern MicroBitUARTService *uart;
                     }							\
                     return 1;						\
                   })							\
-    X(sendAsync,  { if(!uart) { lua_pushnil(L); return 1; }		\
+    F(sendAsync,  { if(!uart) { lua_pushnil(L); return 1; }		\
                     ManagedString s = luaL_checkManagedString(L, 1);	\
                     int r = uart->send(s, ASYNC);			\
                     if(r != DEVICE_SERIAL_IN_USE &&			\
@@ -773,12 +773,12 @@ extern MicroBitUARTService *uart;
                     }							\
                     return 1;						\
                   })							\
-    X(getChar,    { if(!uart) { lua_pushnil(L); return 1; }		\
+    F(getChar,    { if(!uart) { lua_pushnil(L); return 1; }		\
                     char r = (char)uart->getc(SYNC_SLEEP);		\
                     lua_pushlstring(L, &r, 1);				\
                     return 1;						\
                   })							\
-    X(getCharAsync, {							\
+    F(getCharAsync, {							\
                     if(!uart) { lua_pushnil(L); return 1; }		\
                     int r = uart->getc(ASYNC);				\
                     if(r != MICROBIT_NO_DATA) {				\
@@ -789,48 +789,48 @@ extern MicroBitUARTService *uart;
                     }							\
                     return 1;						\
                   })							\
-    X(read,       { if(!uart) { lua_pushnil(L); return 1; }		\
+    F(read,       { if(!uart) { lua_pushnil(L); return 1; }		\
                     int size = luaL_checkint(L, 1);			\
                     lua_pushManagedString(L,				\
                       uart->read(size, SYNC_SLEEP));			\
                     return 1;						\
                   })							\
-    X(readAsync,  { if(!uart) { lua_pushnil(L); return 1; }		\
+    F(readAsync,  { if(!uart) { lua_pushnil(L); return 1; }		\
                     int size = luaL_checkint(L, 1);			\
                     lua_pushManagedString(L,				\
                       uart->read(size, ASYNC));				\
                     return 1;						\
                   })							\
-    X(readUntil,  { if(!uart) { lua_pushnil(L); return 1; }		\
+    F(readUntil,  { if(!uart) { lua_pushnil(L); return 1; }		\
                     ManagedString delimiters =				\
                       luaL_checkManagedString(L, 1);			\
                     lua_pushManagedString(L,				\
                       uart->readUntil(delimiters, SYNC_SLEEP));		\
                     return 1;						\
                   })							\
-    X(eventOn,    { if(!uart) { return 0; }				\
+    F(eventOn,    { if(!uart) { return 0; }				\
                     uart->eventOn(luaL_checkManagedString(L, 1),	\
                                            SYNC_SLEEP);			\
                     return 0;						\
                   })							\
-    X(eventOnAsync, {							\
+    F(eventOnAsync, {							\
                     if(!uart) { return 0; }				\
                     uart->eventOn(luaL_checkManagedString(L, 1),	\
                                            ASYNC);			\
                     return 0;						\
                   })							\
-    X(eventAfter, { if(!uart) { return 0; }				\
+    F(eventAfter, { if(!uart) { return 0; }				\
                     uart->eventAfter(luaL_checkint(L, 1),		\
                                            SYNC_SLEEP);			\
                     return 0;						\
                   })							\
-    X(eventAfterAsync, {						\
+    F(eventAfterAsync, {						\
                     if(!uart) { return 0; }				\
                     uart->eventAfter(luaL_checkint(L, 1),		\
                                            ASYNC);			\
                     return 0;						\
                   })							\
-    X(isReadable, { if(!uart) { lua_pushnil(L); return 1; }		\
+    F(isReadable, { if(!uart) { lua_pushnil(L); return 1; }		\
                     int r = uart->isReadable();				\
                     if(r == 0 || r == 1) {				\
                       lua_pushboolean(L, r == 1);			\
@@ -839,12 +839,12 @@ extern MicroBitUARTService *uart;
                     }							\
                     return 1;						\
                   })							\
-    X(rxBufferedSize, {						\
+    F(rxBufferedSize, {						\
                     if(!uart) { lua_pushnil(L); return 1; }		\
                     lua_pushinteger(L, uart->rxBufferedSize());		\
                     return 1;						\
                   })							\
-    X(txBufferedSize, {						\
+    F(txBufferedSize, {						\
                     if(!uart) { lua_pushnil(L); return 1; }		\
                     lua_pushinteger(L, uart->txBufferedSize());		\
                     return 1;						\
@@ -853,7 +853,7 @@ extern MicroBitUARTService *uart;
 #endif // CONFIG_ENABLED(DEVICE_BLE)
 
 #define LUA_I2C_FUNCTIONS						\
-    X(read,       { int address = luaL_checkint(L, 1);			\
+    F(read,       { int address = luaL_checkint(L, 1);			\
                     int length = luaL_checkint(L, 2);			\
                     char data[length];					\
                     if(i2c.read(address, data, length) == MICROBIT_OK){	\
@@ -863,7 +863,7 @@ extern MicroBitUARTService *uart;
                       return luaL_error(L, "i2c read error");		\
                     }							\
                   })							\
-    X(write,      { int address = luaL_checkint(L, 1);			\
+    F(write,      { int address = luaL_checkint(L, 1);			\
                     size_t length;					\
                     char *data =					\
                       (char *)luaL_checklstring(L, 2, &length);		\
@@ -876,37 +876,37 @@ extern MicroBitUARTService *uart;
                   })
 
 #define LUA_RADIO_FUNCTIONS						\
-    X(setTransmitPower, {						\
+    F(setTransmitPower, {						\
                     int power = luaL_checkint(L, 1);			\
                     int r = uBit.radio.setTransmitPower(power);		\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(setFrequencyBand, {						\
+    F(setFrequencyBand, {						\
                     int band = luaL_checkint(L, 1);			\
                     int r = uBit.radio.setFrequencyBand(band);		\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(enable,     { int r = uBit.radio.enable();			\
+    F(enable,     { int r = uBit.radio.enable();			\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(disable,    { int r = uBit.radio.disable();			\
+    F(disable,    { int r = uBit.radio.disable();			\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(setGroup,   {							\
+    F(setGroup,   {							\
                     uint8_t group = (uint8_t)luaL_checkint(L, 1);	\
                     int r = uBit.radio.setGroup(group);			\
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })							\
-    X(dataReady,  { int r = uBit.radio.dataReady();			\
+    F(dataReady,  { int r = uBit.radio.dataReady();			\
                     lua_pushinteger(L, r);					\
                     return 1;						\
                   })							\
-    X(recv,       { PacketBuffer r = uBit.radio.datagram.recv();	\
+    F(recv,       { PacketBuffer r = uBit.radio.datagram.recv();	\
                     if(r == PacketBuffer::EmptyPacket) {		\
                       lua_pushnil(L);					\
                     } else {						\
@@ -915,7 +915,7 @@ extern MicroBitUARTService *uart;
                     }						 	\
                     return 1;						\
                   })							\
-    X(send,       { size_t len;						\
+    F(send,       { size_t len;						\
                     const char *buffer = luaL_checklstring(L, 1, &len);	\
                     int r = uBit.radio.datagram.send(			\
                       PacketBuffer((uint8_t*)buffer, len));		\
@@ -924,80 +924,80 @@ extern MicroBitUARTService *uart;
                   })
 
 #define LUA_CODAL_CONSTANTS \
-    X(MICROBIT_ID_LOGO) \
-    X(DEVICE_ID_BUTTON_A) \
-    X(DEVICE_ID_BUTTON_B) \
-    X(DEVICE_ID_BUTTON_AB) \
-    X(DEVICE_ID_SERIAL) \
-    X(DEVICE_ID_ACCELEROMETER) \
-    X(DEVICE_ID_COMPASS) \
-    X(DEVICE_ID_GESTURE) \
-    X(DEVICE_ID_RADIO) \
-    X(DEVICE_ID_RADIO_DATA_READY) \
-    X(ACCELEROMETER_EVT_DATA_UPDATE) \
-    X(ACCELEROMETER_EVT_TILT_UP) \
-    X(ACCELEROMETER_EVT_TILT_DOWN) \
-    X(ACCELEROMETER_EVT_TILT_LEFT) \
-    X(ACCELEROMETER_EVT_TILT_RIGHT) \
-    X(ACCELEROMETER_EVT_FACE_UP) \
-    X(ACCELEROMETER_EVT_FACE_DOWN) \
-    X(ACCELEROMETER_EVT_FREEFALL) \
-    X(ACCELEROMETER_EVT_3G) \
-    X(ACCELEROMETER_EVT_6G) \
-    X(ACCELEROMETER_EVT_8G) \
-    X(ACCELEROMETER_EVT_SHAKE) \
-    X(COMPASS_EVT_DATA_UPDATE) \
-    X(COMPASS_EVT_CONFIG_NEEDED) \
-    X(COMPASS_EVT_CALIBRATE) \
-    X(COMPASS_EVT_CALIBRATION_NEEDED) \
-    X(DEVICE_BUTTON_EVT_DOWN) \
-    X(DEVICE_BUTTON_EVT_UP) \
-    X(DEVICE_BUTTON_EVT_CLICK) \
-    X(DEVICE_BUTTON_EVT_LONG_CLICK) \
-    X(DEVICE_BUTTON_EVT_HOLD) \
-    X(DEVICE_BUTTON_EVT_DOUBLE_CLICK) \
-    X(MICROBIT_RADIO_EVT_DATAGRAM) \
-    X(CODAL_SERIAL_EVT_HEAD_MATCH)
+    C(MICROBIT_ID_LOGO) \
+    C(DEVICE_ID_BUTTON_A) \
+    C(DEVICE_ID_BUTTON_B) \
+    C(DEVICE_ID_BUTTON_AB) \
+    C(DEVICE_ID_SERIAL) \
+    C(DEVICE_ID_ACCELEROMETER) \
+    C(DEVICE_ID_COMPASS) \
+    C(DEVICE_ID_GESTURE) \
+    C(DEVICE_ID_RADIO) \
+    C(DEVICE_ID_RADIO_DATA_READY) \
+    C(ACCELEROMETER_EVT_DATA_UPDATE) \
+    C(ACCELEROMETER_EVT_TILT_UP) \
+    C(ACCELEROMETER_EVT_TILT_DOWN) \
+    C(ACCELEROMETER_EVT_TILT_LEFT) \
+    C(ACCELEROMETER_EVT_TILT_RIGHT) \
+    C(ACCELEROMETER_EVT_FACE_UP) \
+    C(ACCELEROMETER_EVT_FACE_DOWN) \
+    C(ACCELEROMETER_EVT_FREEFALL) \
+    C(ACCELEROMETER_EVT_3G) \
+    C(ACCELEROMETER_EVT_6G) \
+    C(ACCELEROMETER_EVT_8G) \
+    C(ACCELEROMETER_EVT_SHAKE) \
+    C(COMPASS_EVT_DATA_UPDATE) \
+    C(COMPASS_EVT_CONFIG_NEEDED) \
+    C(COMPASS_EVT_CALIBRATE) \
+    C(COMPASS_EVT_CALIBRATION_NEEDED) \
+    C(DEVICE_BUTTON_EVT_DOWN) \
+    C(DEVICE_BUTTON_EVT_UP) \
+    C(DEVICE_BUTTON_EVT_CLICK) \
+    C(DEVICE_BUTTON_EVT_LONG_CLICK) \
+    C(DEVICE_BUTTON_EVT_HOLD) \
+    C(DEVICE_BUTTON_EVT_DOUBLE_CLICK) \
+    C(MICROBIT_RADIO_EVT_DATAGRAM) \
+    C(CODAL_SERIAL_EVT_HEAD_MATCH)
 
 #if CONFIG_ENABLED(DEVICE_BLE)
 #define LUA_BLE_CONSTANTS \
-    X(MICROBIT_ID_BLE) \
-    X(MICROBIT_ID_BLE_UART) \
-    X(MICROBIT_BLE_EVT_CONNECTED) \
-    X(MICROBIT_BLE_EVT_DISCONNECTED) \
-    X(MICROBIT_UART_S_EVT_DELIM_MATCH) \
-    X(MICROBIT_UART_S_EVT_HEAD_MATCH) \
-    X(MICROBIT_UART_S_EVT_RX_FULL)
+    C(MICROBIT_ID_BLE) \
+    C(MICROBIT_ID_BLE_UART) \
+    C(MICROBIT_BLE_EVT_CONNECTED) \
+    C(MICROBIT_BLE_EVT_DISCONNECTED) \
+    C(MICROBIT_UART_S_EVT_DELIM_MATCH) \
+    C(MICROBIT_UART_S_EVT_HEAD_MATCH) \
+    C(MICROBIT_UART_S_EVT_RX_FULL)
 #endif
 
-#define X(name, body) static int l_##name(lua_State *L) body
+#define F(name, body) static int l_##name(lua_State *L) body
 LUA_MICROBIT_FUNCTIONS
 LUA_DISPLAY_FUNCTIONS
 LUA_ACCELEROMETER_FUNCTIONS
 LUA_AUDIO_FUNCTIONS
 LUA_IO_FUNCTIONS
 LUA_SERIAL_FUNCTIONS
-#undef X
+#undef F
 
 #if CONFIG_ENABLED(DEVICE_BLE)
-#define X(name, body) static int l_ble_uart_##name(lua_State *L) body
+#define F(name, body) static int l_ble_uart_##name(lua_State *L) body
 LUA_BLE_FUNCTIONS
-#undef X
+#undef F
 #endif
 
-#define X(name, body) static int l_compass_##name(lua_State *L) body
+#define F(name, body) static int l_compass_##name(lua_State *L) body
 LUA_COMPASS_FUNCTIONS
-#undef X
+#undef F
 
-#define X(name, body) static int l_radio_##name(lua_State *L) body
+#define F(name, body) static int l_radio_##name(lua_State *L) body
 LUA_RADIO_FUNCTIONS
-#undef X
+#undef F
 
-#define X(name, body) static int l_i2c_##name(lua_State *L) body
+#define F(name, body) static int l_i2c_##name(lua_State *L) body
 LUA_I2C_FUNCTIONS
-#undef X
+#undef F
 
-#define X(name, body) {#name, l_##name},
+#define F(name, body) {#name, l_##name},
 static const luaL_Reg l_microbit[] = {
     LUA_MICROBIT_FUNCTIONS
     {NULL, NULL}
@@ -1023,35 +1023,35 @@ static const luaL_Reg l_serial[] = {
     {NULL, NULL}
 };
 #if CONFIG_ENABLED(DEVICE_BLE)
-#define X(name, body) {#name, l_ble_uart_##name},
+#define F(name, body) {#name, l_ble_uart_##name},
 static const luaL_Reg l_ble_uart[] = {
     LUA_BLE_FUNCTIONS
     {NULL, NULL}
 };
-#undef X
+#undef F
 #endif
-#undef X
+#undef F
 
-#define X(name, body) {#name, l_compass_##name},
+#define F(name, body) {#name, l_compass_##name},
 static const luaL_Reg l_compass[] = {
     LUA_COMPASS_FUNCTIONS
     {NULL, NULL}
 };
-#undef X
+#undef F
 
-#define X(name, body) {#name, l_radio_##name},
+#define F(name, body) {#name, l_radio_##name},
 static const luaL_Reg l_radio[] = {
     LUA_RADIO_FUNCTIONS
     {NULL, NULL}
 };
-#undef X
+#undef F
 
-#define X(name, body) {#name, l_i2c_##name},
+#define F(name, body) {#name, l_i2c_##name},
 static const luaL_Reg l_i2c[] = {
     LUA_I2C_FUNCTIONS
     {NULL, NULL}
 };
-#undef X
+#undef F
 
 // Number of registered entries in a luaL_Reg table, excluding the trailing
 // {NULL, NULL} terminator. Used as the lua_createtable hash size hint.
@@ -1100,13 +1100,13 @@ void register_lua_api(lua_State *L) {
   // entries from luaopen_* (base, table, string, math) sit below it — using
   // a relative index like -2 would target the wrong table.
   int microbit_idx = lua_gettop(L);
-#define X(n) lua_pushinteger(L, n); lua_setfield(L, microbit_idx, #n);
+#define C(n) lua_pushinteger(L, n); lua_setfield(L, microbit_idx, #n);
   LUA_CODAL_CONSTANTS
-#undef X
+#undef C
 #if CONFIG_ENABLED(DEVICE_BLE)
-#define X(n) lua_pushinteger(L, n); lua_setfield(L, microbit_idx, #n);
+#define C(n) lua_pushinteger(L, n); lua_setfield(L, microbit_idx, #n);
   LUA_BLE_CONSTANTS
-#undef X
+#undef C
 #endif
 }
 
