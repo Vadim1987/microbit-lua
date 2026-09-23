@@ -1,4 +1,6 @@
 // -*- mode: c++; indent-tabs-mode: nil; -*-
+#include <string.h>
+
 extern "C" {
 #include "lua.h"
 #include "lauxlib.h"
@@ -997,116 +999,135 @@ LUA_RADIO_FUNCTIONS
 LUA_I2C_FUNCTIONS
 #undef F
 
-#define F(name, body) {#name, l_##name},
-static const luaL_Reg l_microbit[] = {
+// One entry per public name of an API namespace: a method (func set) or an
+// event constant (func NULL, value set). Kept in flash; the namespace tables
+// reference these arrays and materialise entries on first access.
+typedef struct {
+  const char *name;
+  lua_CFunction func;
+  lua_Integer value;
+} LuaApi;
+
+#define F(name, body) {#name, l_##name, 0},
+#define C(n)          {#n, NULL, (lua_Integer)(n)},
+static const LuaApi l_microbit[] = {
     LUA_MICROBIT_FUNCTIONS
-    {NULL, NULL}
-};
-static const luaL_Reg l_display[] = {
-    LUA_DISPLAY_FUNCTIONS
-    {NULL, NULL}
-};
-static const luaL_Reg l_accelerometer[] = {
-    LUA_ACCELEROMETER_FUNCTIONS
-    {NULL, NULL}
-};
-static const luaL_Reg l_audio[] = {
-    LUA_AUDIO_FUNCTIONS
-    {NULL, NULL}
-};
-static const luaL_Reg l_io[] = {
-    LUA_IO_FUNCTIONS
-    {NULL, NULL}
-};
-static const luaL_Reg l_serial[] = {
-    LUA_SERIAL_FUNCTIONS
-    {NULL, NULL}
-};
+    LUA_CODAL_CONSTANTS
 #if CONFIG_ENABLED(DEVICE_BLE)
-#define F(name, body) {#name, l_ble_uart_##name},
-static const luaL_Reg l_ble_uart[] = {
+    LUA_BLE_CONSTANTS
+#endif
+    {NULL, NULL, 0}
+};
+#undef C
+static const LuaApi l_display[] = {
+    LUA_DISPLAY_FUNCTIONS
+    {NULL, NULL, 0}
+};
+static const LuaApi l_accelerometer[] = {
+    LUA_ACCELEROMETER_FUNCTIONS
+    {NULL, NULL, 0}
+};
+static const LuaApi l_audio[] = {
+    LUA_AUDIO_FUNCTIONS
+    {NULL, NULL, 0}
+};
+static const LuaApi l_io[] = {
+    LUA_IO_FUNCTIONS
+    {NULL, NULL, 0}
+};
+static const LuaApi l_serial[] = {
+    LUA_SERIAL_FUNCTIONS
+    {NULL, NULL, 0}
+};
+#undef F
+
+#if CONFIG_ENABLED(DEVICE_BLE)
+#define F(name, body) {#name, l_ble_uart_##name, 0},
+static const LuaApi l_ble_uart[] = {
     LUA_BLE_FUNCTIONS
-    {NULL, NULL}
+    {NULL, NULL, 0}
 };
 #undef F
 #endif
-#undef F
 
-#define F(name, body) {#name, l_compass_##name},
-static const luaL_Reg l_compass[] = {
+#define F(name, body) {#name, l_compass_##name, 0},
+static const LuaApi l_compass[] = {
     LUA_COMPASS_FUNCTIONS
-    {NULL, NULL}
+    {NULL, NULL, 0}
 };
 #undef F
 
-#define F(name, body) {#name, l_radio_##name},
-static const luaL_Reg l_radio[] = {
+#define F(name, body) {#name, l_radio_##name, 0},
+static const LuaApi l_radio[] = {
     LUA_RADIO_FUNCTIONS
-    {NULL, NULL}
+    {NULL, NULL, 0}
 };
 #undef F
 
-#define F(name, body) {#name, l_i2c_##name},
-static const luaL_Reg l_i2c[] = {
+#define F(name, body) {#name, l_i2c_##name, 0},
+static const LuaApi l_i2c[] = {
     LUA_I2C_FUNCTIONS
-    {NULL, NULL}
+    {NULL, NULL, 0}
 };
 #undef F
 
-// Number of registered entries in a luaL_Reg table, excluding the trailing
-// {NULL, NULL} terminator. Used as the lua_createtable hash size hint.
-#define LUA_REG_VECTOR_COUNT(a) ((int)(sizeof(a) / sizeof((a)[0]) - 1))
+// Resolve a missing field on an API namespace table. Upvalue 1 is the
+// namespace's LuaApi array. The first matching entry is materialised (a C
+// closure for a method, an integer for a constant) and cached in the table, so
+// only names that are actually used ever allocate.
+static int l_lazy_index(lua_State *L) {
+  const char *key = (lua_type(L, 2) == LUA_TSTRING) ? lua_tostring(L, 2) : NULL;
+  if (key != NULL) {
+    const LuaApi *e = (const LuaApi *)lua_touserdata(L, lua_upvalueindex(1));
+    for (; e->name != NULL; e++) {
+      if (strcmp(e->name, key) == 0) {
+        if (e->func != NULL)
+          lua_pushcfunction(L, e->func);
+        else
+          lua_pushinteger(L, e->value);
+        lua_pushvalue(L, 2);    // key
+        lua_pushvalue(L, -2);   // value
+        lua_rawset(L, 1);       // table[key] = value (cache it)
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+// Push a namespace table whose entries are populated on first access.
+static void lua_push_namespace(lua_State *L, const LuaApi *api) {
+  lua_newtable(L);
+  lua_newtable(L);
+  lua_pushlightuserdata(L, (void *)api);
+  lua_pushcclosure(L, l_lazy_index, 1);
+  lua_setfield(L, -2, "__index");
+  lua_setmetatable(L, -2);
+}
 
 void register_lua_api(lua_State *L) {
-  // l_microbit needs no explicit count: luaL_register() sizes the `microbit`
-  // table via libsize().
-  luaL_register(L, "microbit", l_microbit);
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_display));
-  luaL_register(L, NULL, l_display);
-  lua_setfield(L, -2, "display");
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_accelerometer));
-  luaL_register(L, NULL, l_accelerometer);
-  lua_setfield(L, -2, "accelerometer");
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_compass));
-  luaL_register(L, NULL, l_compass);
-  lua_setfield(L, -2, "compass");
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_audio));
-  luaL_register(L, NULL, l_audio);
-  lua_setfield(L, -2, "audio");
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_io));
-  luaL_register(L, NULL, l_io);
-  lua_setfield(L, -2, "io");
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_serial));
-  luaL_register(L, NULL, l_serial);
-  lua_setfield(L, -2, "serial");
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_radio));
-  luaL_register(L, NULL, l_radio);
-  lua_setfield(L, -2, "radio");
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_i2c));
-  luaL_register(L, NULL, l_i2c);
-  lua_setfield(L, -2, "i2c");
-#if CONFIG_ENABLED(DEVICE_BLE)
-  lua_createtable(L, 0, 1);                 // microbit.ble
-  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_ble_uart));
-  luaL_register(L, NULL, l_ble_uart);
-  lua_setfield(L, -2, "uart");
-  lua_setfield(L, -2, "ble");
-#endif
-
-  // TODO: avoid repeated reallocations
-  // CODAL event constants — use the exact C macro names so that reading
-  // CODAL source/docs is sufficient to write Lua code (no extra translation).
   // Capture the absolute stack index of the microbit table because leftover
-  // entries from luaopen_* (base, table, string, math) sit below it — using
-  // a relative index like -2 would target the wrong table.
+  // entries from luaopen_* (base, table, string, math) sit below it — a
+  // relative index like -2 would target the wrong table.
+  lua_push_namespace(L, l_microbit);
   int microbit_idx = lua_gettop(L);
-#define C(n) lua_pushinteger(L, n); lua_setfield(L, microbit_idx, #n);
-  LUA_CODAL_CONSTANTS
-#undef C
+  lua_pushvalue(L, microbit_idx);
+  lua_setglobal(L, "microbit");
+
+  lua_push_namespace(L, l_display);       lua_setfield(L, microbit_idx, "display");
+  lua_push_namespace(L, l_accelerometer); lua_setfield(L, microbit_idx, "accelerometer");
+  lua_push_namespace(L, l_compass);       lua_setfield(L, microbit_idx, "compass");
+  lua_push_namespace(L, l_audio);         lua_setfield(L, microbit_idx, "audio");
+  lua_push_namespace(L, l_io);            lua_setfield(L, microbit_idx, "io");
+  lua_push_namespace(L, l_serial);        lua_setfield(L, microbit_idx, "serial");
+  lua_push_namespace(L, l_radio);         lua_setfield(L, microbit_idx, "radio");
+  lua_push_namespace(L, l_i2c);           lua_setfield(L, microbit_idx, "i2c");
 #if CONFIG_ENABLED(DEVICE_BLE)
-#define C(n) lua_pushinteger(L, n); lua_setfield(L, microbit_idx, #n);
-  LUA_BLE_CONSTANTS
-#undef C
+  lua_newtable(L);                                 // microbit.ble
+  int ble_idx = lua_gettop(L);
+  lua_push_namespace(L, l_ble_uart);
+  lua_setfield(L, ble_idx, "uart");
+  lua_setfield(L, microbit_idx, "ble");
 #endif
 }
 
