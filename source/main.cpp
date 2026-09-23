@@ -148,6 +148,10 @@ int main() {
     {
         LUA_MEM_REPORT(L, "loaded");
 
+        // Release the parsed chunk's debug arrays before running it.
+        lua_strip_debug(L);
+        LUA_MEM_REPORT(L, "stripped");
+
         if (lua_pcall(L, 0, LUA_MULTRET, 0) != LUA_OK)
         {
             const char *err = lua_tostring(L, -1);
