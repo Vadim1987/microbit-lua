@@ -28,6 +28,32 @@ extern const LuaMeta __lua_meta;
 #endif
 #include "codal-lua.h"
 
+// Optional RAM instrumentation. Enabled by defining LUA_MEM_DEBUG (e.g. in
+// codal.json config); DMESG output additionally needs DMESG_SERIAL_DEBUG.
+// When CODAL_DEBUG is at the heap level, each report also dumps the CODAL heap.
+#if (CODAL_DEBUG >= CODAL_DEBUG_HEAP)
+void device_heap_print();   // defined in CodalHeapAllocator.cpp under this same guard
+#endif
+
+#if defined(LUA_MEM_DEBUG) && LUA_MEM_DEBUG
+static void lua_mem_report(lua_State *L, const char *tag) {
+    int bytes = 0;
+    if (L) {
+        lua_gc(L, LUA_GCCOLLECT, 0);
+        bytes = lua_gc(L, LUA_GCCOUNT, 0) * 1024 + lua_gc(L, LUA_GCCOUNTB, 0);
+    }
+    DMESG("LUA_MEM %s: lua=%d bytes", tag, bytes);
+    (void)bytes;  // DMESG is a no-op without DMESG_SERIAL_DEBUG
+
+#if (CODAL_DEBUG >= CODAL_DEBUG_HEAP)
+    device_heap_print();
+#endif
+}
+#define LUA_MEM_REPORT(L, tag) lua_mem_report((L), (tag))
+#else
+#define LUA_MEM_REPORT(L, tag) ((void)0)
+#endif
+
 MicroBit uBit;
 
 #if CONFIG_ENABLED(DEVICE_BLE)
@@ -98,6 +124,8 @@ int main() {
         }
     }
 
+    LUA_MEM_REPORT(NULL, "boot");
+
     /* Create Lua state using CODAL heap */
     lua_State *L = luaL_newstate();
     if (!L) {
@@ -106,20 +134,32 @@ int main() {
 
     lua_atpanic(L, lua_panic_handler);
 
+    LUA_MEM_REPORT(L, "state");
+
     /* Load standard libraries */
     luaopen_base(L);
     luaopen_table(L);
     luaopen_string(L);
     luaopen_math(L);
 
+    LUA_MEM_REPORT(L, "stdlib");
+
     register_lua_api(L);
     // Register the MessageBus listener BEFORE running the script so that
     // events queued during / after script execution are never missed.
     register_lua_event_listener(L);
 
+    LUA_MEM_REPORT(L, "api");
+
     if (luaL_loadbuffer(L, (const char*)__lua_meta.start,
                         __lua_meta.size, "embedded") == LUA_OK)
     {
+        LUA_MEM_REPORT(L, "loaded");
+
+        // Release the parsed chunk's debug arrays before running it.
+        lua_strip_debug(L);
+        LUA_MEM_REPORT(L, "stripped");
+
         if (lua_pcall(L, 0, LUA_MULTRET, 0) != LUA_OK)
         {
             const char *err = lua_tostring(L, -1);
@@ -137,6 +177,8 @@ int main() {
             uBit.display.scroll(err);
         }
     }
+
+    LUA_MEM_REPORT(L, "ran");
 
     // Don't lua_close(L) — the Lua state must stay alive for the event
     // listener callback (on_codal_event) to call lua_pcall later.
