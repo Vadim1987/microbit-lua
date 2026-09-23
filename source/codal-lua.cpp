@@ -1096,7 +1096,7 @@ static bool radio_one(const char *body, int len)
                     return 1;						\
                   })							\
 /* connect(friendlyName, timeout_ms) -> boolean */			\
-    X(connect,    { const char *them = luaL_checkstring(L, 1);		\
+    F(connect,    { const char *them = luaL_checkstring(L, 1);		\
                     int timeout = luaL_optint(L, 2, RADIO_TIMEOUT);	\
                     char hello[RADIO_NAME * 2];				\
                     uint8_t link = (uint8_t)(uBit.random(255) + 1);	\
@@ -1115,14 +1115,14 @@ static bool radio_one(const char *body, int len)
                     return 1;						\
                   })							\
 /* listen() -> friendlyName of whoever connected */			\
-    X(listen,     { while (!radio_called_us()) uBit.sleep(1);		\
+    F(listen,     { while (!radio_called_us()) uBit.sleep(1);		\
                     lua_pushstring(L, radio_peer);			\
                     return 1;						\
                   })							\
 /* tx(message) -> boolean
  * The message goes piece by piece, each taken before the
  * next one leaves. */							\
-    X(tx,         { size_t len;						\
+    F(tx,         { size_t len;						\
                     const char *msg = luaL_checklstring(L, 1, &len);	\
                     size_t sent = 0;					\
                     if (radio_link == 0) {				\
@@ -1145,7 +1145,7 @@ static bool radio_one(const char *body, int len)
  * One piece, acknowledged. A piece that arrives twice is
  * acknowledged again and dropped: the far end did not hear
  * the first answer. */							\
-    X(rx,         { uint8_t body[RADIO_BODY];				\
+    F(rx,         { uint8_t body[RADIO_BODY];				\
                     uint8_t num;					\
                     int len;						\
                     if (radio_link == 0					\
@@ -1165,7 +1165,7 @@ static bool radio_one(const char *body, int len)
                   })							\
 /* answered() -> friendlyName if somebody has just called
  * again, or nil */							\
-    X(answered,   { if (radio_called_us()) {				\
+    F(answered,   { if (radio_called_us()) {				\
                       lua_pushstring(L, radio_peer);			\
                     } else {						\
                       lua_pushnil(L);					\
