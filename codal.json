@@ -23,6 +23,10 @@
 	"DMESG_SERIAL_DEBUG": 0,
 	"MICROBIT_DMESG_LEVEL": 0,
 	"CODAL_DEBUG": 0,
+	// Emit LUA_MEM Lua-heap reports at boot markers; needs DMESG_SERIAL_DEBUG=1
+	// to be visible, and CODAL_DEBUG=2 to also dump the CODAL heap.
+	// ! Must do a clean build after changing it: ./build.py --clean
+	"LUA_MEM_DEBUG": 0,
 	// Whether to compile in the BLE services.
 	// ! Must do a clean build after changing it: ./build.py --clean
         "DEVICE_BLE": 1,
