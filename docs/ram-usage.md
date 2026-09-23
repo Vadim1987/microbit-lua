@@ -134,36 +134,35 @@ compatible bytecode.
 The 41 constants are entries in the same lazy `LuaApi` tables as the methods, so
 they are materialised on first access too (and cached, so O(1) thereafter).
 
-### S5. Flash-resident (read-only) strings — ~2 KB, invasive
+### S5. Flash-resident strings — ~3–5 KB, feasible
 
-Lua's string value is a `TString*`, not bytes: `Proto.k` holds `TValue`s whose
-string constants are pointers (`lobject.h:233`), and the bytes live inline right
-after the header (`getstr(ts) = (char*)(ts+1)`, `lobject.h:210`). On load,
-`LoadString` calls `luaS_newlstr` (`lundump.c:76`), which allocates
-`16 + len + 1` bytes, **copies the bytes**, and interns the result in
-`G(L)->strt` (`lstring.c:56-67`). Table and global lookups then rely on the
-interned object's cached `hash` and on pointer identity (`ltable.c:52,455`). The
-chunk format has no "reference a flash string" opcode, so the dump must echo the
-bytes (once per occurrence — 184 here, deduped to 109 unique at load; the
-repeats cost flash only).
+Strings are the easy permanent class: they are **leaf objects** (no outgoing
+references), so the collector only needs to *not write* their header — no child
+marking, no cycles. The blocker is not the GC but **identity**: table and global
+lookups compare string pointers (`luaH_getstr`, `ltable.c:455`), so a static
+`"print"` must be the single canonical object for its content.
 
-Keeping the bytes in flash would therefore require:
+Feasible mechanism:
 
-- a `TString` variant with an external data pointer, changing `getstr` to an
-  indirection — an extra dereference on **every** string access in the VM;
-- a real, mutable GC header (`next`, `marked`, cached `hash`) still allocated in
-  RAM, since interning and table lookup need it;
-- a reworked interning/lookup path that accepts the external representation
-  (e.g. a static, compile-time string table) instead of `luaS_newlstr`.
+- declare static `TString`s in `.rodata` with the bytes inline at
+  `getstr(ts) = (ts)+1` and a **precomputed `hash`** (flash is read-only; the
+  pool can't be chained into `strt.hash`, which needs `next` writes);
+- look the pool up **first** in `luaS_newlstr` (`lstring.c:75`) and return the
+  static object, so no heap duplicate is ever interned and pointer equality
+  keeps working unchanged;
+- skip read-only objects in `markobject`/`markvalue` and in the
+  `reallymarkobject` call inside `luaC_barrierf` (`is_readonly` is a plain
+  address test — flash is `< 0x10000000`); they are never linked into `rootgc`,
+  so sweep and `luaS_resize` never see them.
 
-| strings | unique | payload | current RAM (`TString` hdr + inline bytes) | best case after stub |
-|---|---:|---:|---:|---:|
-| script string constants | 109 | 936 B | ~3.0 KB | save ~2.0 KB |
-| API namespace names | 167 | ~2.4 KB | ~5.6 KB | save ~4–5 KB |
+Exclude Lua keywords: the lexer writes `tsv.reserved` (`llex.c:70`).
 
-The script-only win is ~2 KB; the larger API-name win is handled by S1
-(implemented), which needs no VM changes. This is the eLua "LTR" / LuatOS class
-of change.
+The residual is only the strings actually referenced — the script's chunk
+constants (~109 unique) plus standard-library names — roughly **3–5 KB**; S1
+already deferred the rest. API/stdlib names are known in C; the chunk constants
+need a build-time generator (host Lua to enumerate them), which is the bulk of
+the work. This supersedes the earlier "external data pointer" idea: a whole
+static `TString` (header + inline bytes) is simpler and saves more.
 
 ### S6. 32-bit float Lua numbers — implemented, 5.6 KB
 
@@ -181,13 +180,32 @@ Caveat: a 24-bit mantissa makes integers above 2^24 approximate
 32-bit device ID lossless (API change). `LUAI_USER_ALIGNMENT_T` and the string
 layout are untouched.
 
-### Rejected: true flash-resident `Proto`
+### S7. Flash-resident `Proto.code` — ~4 KB, feasible-moderate
 
-Aliasing the dumped `code` arrays into flash would avoid only the ~4 KB of
-instructions; string constants, numeric constants, `Proto` headers, and nested
-proto arrays must remain on the heap. It needs invasive changes to
-`luaF_newproto` / `luaF_freeproto` / GC traversal with a new `Proto` flag. Poor
-cost/benefit.
+`code` is an array of 32-bit instructions with no GC references, so the
+collector neither traverses nor needs to know about it; only `luaF_freeproto`
+must skip freeing it. Precompile the script to bytecode in flash (S3) and have
+`LoadCode` point `f->code` at the flash buffer behind a `PROTO_CODE_RO` flag —
+no GC changes. Costs: S3's 32-bit `luac`, a reader that can hand back a flash
+pointer instead of copying, and 4-byte alignment of the blob. `k`, `p` and the
+upvalue arrays cannot move (heap pointers / GC refs).
+
+### Not worth the complexity
+
+- **General permanent GC objects (non-leaf: closures, protos, tables).** They
+  have children, and since flash cannot hold `marked`, marking them needs a
+  separate visited set to break cycles, plus gray-list and write-barrier
+  changes — core-collector surgery where a bug is a use-after-free. Only ~1 KB
+  of used API `CClosure`s is reachable this way (S1 already deferred the rest).
+- **Static standard-library tables/closures (~7.8 KB).** Built at runtime by
+  `luaopen_*`; making them static means rewriting those libraries and making
+  mutable non-leaf tables permanent. Not worth it.
+- **Frozen Lua tables.** Don't work: tables are mutable through the API and are
+  non-leaf.
+- **C `.data`/`.bss` audit.** Mostly genuine runtime state; broad search for a
+  small, uncertain yield.
+- **Full flash-resident `Proto`.** Only `code` is inert; `k`, `p` and upvalue
+  arrays hold heap pointers/GC refs and must stay in RAM.
 
 ### Method and caveats
 
