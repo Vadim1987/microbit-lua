@@ -27,6 +27,15 @@ extern const LuaMeta __lua_meta;
 #include "MicroBitUARTService.h"
 #endif
 #include "codal-lua.h"
+#include "stack-probe.h"
+
+// Stack high-water reporting (see stack-probe.c). The probe is always active;
+// the output only appears when DMESG is enabled (DMESG_SERIAL_DEBUG).
+static void report_stack(const char *tag) {
+    DMESG("STACK %s: current=%d peak=%d region=%d",
+          tag, (int)stack_probe_current(), (int)stack_probe_peak(),
+          (int)stack_probe_region());
+}
 
 // Optional RAM instrumentation. Enabled by defining LUA_MEM_DEBUG (e.g. in
 // codal.json config); DMESG output additionally needs DMESG_SERIAL_DEBUG.
@@ -102,6 +111,8 @@ void setup_ble_uart_service() {
 #endif
 
 int main() {
+    stack_probe_paint();
+
     uBit.init();
 
     // Enlarge the serial RX ring (default 20) so pasted lines don't overflow
@@ -113,6 +124,8 @@ int main() {
 #endif
 
     DMESG("main speaking");
+
+    report_stack("init");
 
     if ((__lua_meta.end - __lua_meta.start != __lua_meta.size)
         || __lua_meta.magic != LUA_META_MAGIC)
@@ -155,6 +168,7 @@ int main() {
                         __lua_meta.size, "embedded") == LUA_OK)
     {
         LUA_MEM_REPORT(L, "loaded");
+        report_stack("loaded");
 
         // Release the parsed chunk's debug arrays before running it.
         lua_strip_debug(L);
@@ -179,6 +193,7 @@ int main() {
     }
 
     LUA_MEM_REPORT(L, "ran");
+    report_stack("ran");
 
     // Don't lua_close(L) — the Lua state must stay alive for the event
     // listener callback (on_codal_event) to call lua_pcall later.

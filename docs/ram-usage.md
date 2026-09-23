@@ -15,13 +15,45 @@ Total RAM is 128 KB (`0x20000000`–`0x20020000`).
 | SoftDevice (BLE blob) | ~8 KB | `0x20000000`–`0x20002040`, outside the app linker region |
 | `.data` | 0.7 KB | initialized C/C++ data, copied from flash |
 | `.bss` | 8.1 KB | zero-initialized C/C++ data |
-| `.stack` | 8 KB | one shared execution stack for all fibers (raised from 2 KB after stack-guard panics) |
+| `.stack` | 8 KB | one shared execution stack for all fibers (raised from 2 KB after stack-guard panics); measured usage in *Stack* below |
 | heap | ~103 KB | everything else; grows up to the stack floor |
 
 The embedded Lua script is **not** in RAM: `source/lua-script.lua` is
 `objcopy`'d into the read-only `.lua_script` flash section and read in place via
 `__lua_meta.start` (`source/main.cpp`). The cost is the parsed `Proto`, not the
 text.
+
+### Stack
+
+This port pages every fiber through one shared execution stack at the top of RAM,
+`[stack_limit(), fiber_initial_stack_base())` (`__StackLimit`..`__StackTop`,
+8 KB, set by `__StackSize` in `source/nrf52833*.ld.patch`). The context switch
+copies only the used range (`CortexContextSwitch.s`), so the shared region holds
+the running fiber's live frames; inactive fibers sit in heap buffers sized by
+`verify_stack_size`.
+
+`source/stack-probe.c` measures the high-water mark: it paints the free part of
+the region with a pattern at boot, and `stack_probe_peak()` finds the deepest
+address later overwritten. `microbit.stackUsage()` returns the peak in bytes,
+`microbit.stackReset()` re-paints, and `main()` prints
+`STACK <tag>: current=… peak=… region=…` at boot checkpoints (needs
+`DMESG_SERIAL_DEBUG`).
+
+On-device (region = 8192 B):
+
+| consumer | C stack |
+|---|---:|
+| parsing the embedded script (`luaL_loadbuffer`) | ~4.1–4.2 KB |
+| REPL/event chain (`on_event` → session → `submit` → `loadstring` → `pcall`) | ~2.5 KB |
+| Lua-to-Lua recursion | ~0 (handled by `luaV_execute`'s `newframe`; grows the Lua stack, not the C stack) |
+
+The two C-stack consumers are **additive in the REPL** — a submitted chunk is
+parsed inside the event chain — so a large user chunk can reach roughly
+`2.5 KB + parser depth`. Size for that sum plus margin for newlib `printf`/`%g`
+(dtoa) and nested IRQ/SoftDevice frames: 8 KB is a comfortable field value,
+7 KB is a plausible trim, and going lower needs the worst-case chunk measured.
+The guard panics (`DEVICE_STACK_OVERFLOW`) on overrun, and reducing `__StackSize`
+grows the heap, since heap end = `stack_limit()`.
 
 ### Lua heap (the tunable part)
 
@@ -117,18 +149,6 @@ right after `luaL_loadbuffer` succeeds. `lua_strip_debug()` walks the loaded
 only loss is line numbers in errors raised by the embedded functions. REPL
 chunks compiled later keep their debug info.
 
-### S3. Build-time stripped bytecode — todo
-
-Compile `lua-script.lua` with `luac -s` and embed the bytecode instead of the
-text (`f_parser` auto-detects the `\033Lua` signature). Same RAM win as S2, a
-slightly smaller flash payload (9.1 KB vs 10.4 KB), and no parse at boot.
-
-Blocker: the bytecode header encodes `sizeof(size_t)`. A native 64-bit host
-`luac` emits 8 and is rejected by `LoadHeader` on the 32-bit ARM target. Requires
-a 32-bit `luac` (`gcc -m32`, so `gcc-multilib` in the Docker/CI image) or a
-cross-build under qemu. Also changes the `hextract embed` workflow to require
-compatible bytecode.
-
 ### S4. Resolve constants through `__index` — done
 
 The 41 constants are entries in the same lazy `LuaApi` tables as the methods, so
@@ -180,15 +200,41 @@ Caveat: a 24-bit mantissa makes integers above 2^24 approximate
 32-bit device ID lossless (API change). `LUAI_USER_ALIGNMENT_T` and the string
 layout are untouched.
 
-### S7. Flash-resident `Proto.code` — todo, ~4 KB
+### S7. Flash-resident Protos — todo, ~4–10 KB
 
-`code` is an array of 32-bit instructions with no GC references, so the
-collector neither traverses nor needs to know about it; only `luaF_freeproto`
-must skip freeing it. Precompile the script to bytecode in flash (S3) and have
-`LoadCode` point `f->code` at the flash buffer behind a `PROTO_CODE_RO` flag —
-no GC changes. Costs: S3's 32-bit `luac`, a reader that can hand back a flash
-pointer instead of copying, and 4-byte alignment of the blob. `k`, `p` and the
-upvalue arrays cannot move (heap pointers / GC refs).
+Compile `lua-script.lua` to bytecode (`luac -s`) and embed that in the
+`.lua_script` flash section instead of the text (`f_parser` auto-detects the
+`\033Lua` signature), then point `Proto` fields at it. This is also the
+prerequisite for a build-time compiled payload generally.
+
+The dump cannot be aliased: `luaU_undump` deserializes it with `luaF_newproto`,
+`luaM_newvector` and `luaS_newlstr`, and the on-disk stream is not the in-memory
+layout. So a build-time generator must emit the in-memory tree as C data with
+link-time-resolved pointers, matching the target (`sizeof(size_t)`,
+`LUA_NUMBER`, endianness).
+
+| | static in flash | RAM | requirements |
+|---|---|---:|---|
+| L1 | `code` | ~4.0 KB | generator; `LoadCode` points `f->code` at flash; `luaF_freeproto` skips freeing it |
+| L2 | `code` + `k` | ~7.3 KB | L1 plus S5 (string `k` entries need link-time `TString*` addresses) |
+| L3 | whole `Proto` tree (headers, `code`, `k`, `p`) | ~10.4 KB | L2 plus permanent-`Proto` GC handling |
+
+`code` is inert (no GC references), so L1 needs no collector changes. L2 makes
+`k` a flash `TValue[]`: numeric entries are inert, but string entries must be
+canonical static `TString`s (S5), else pointer-equality lookups break. L3 also
+puts the headers in flash, so the collector must not write their `marked` /
+`gclist` and `luaF_freeproto` must not free them; unlike the non-leaf closure
+case, the `Proto` graph is an acyclic tree (`p` are children; `k`, `source` are
+leaves), so no visited set is needed — marking can recurse directly.
+`upvalues`/`lineinfo`/`locvars` are already gone via S2. L3 also removes the
+boot-time parse of the embedded chunk (the parser stays for REPL `loadstring`).
+
+Blocker/tooling: the bytecode header encodes `sizeof(size_t)`; a native 64-bit
+host `luac` emits 8 and is rejected by `LoadHeader` on the 32-bit ARM target.
+Build needs a 32-bit `luac` (`gcc -m32`, i.e. `gcc-multilib` in the Docker/CI
+image) or a cross-build under qemu. This generator is the dominant cost; the
+loader and GC changes are small by comparison. It also changes the `hextract
+embed` workflow to require compatible bytecode.
 
 ### Not worth the complexity
 
@@ -204,8 +250,6 @@ upvalue arrays cannot move (heap pointers / GC refs).
   non-leaf.
 - **C `.data`/`.bss` audit.** Mostly genuine runtime state; broad search for a
   small, uncertain yield.
-- **Full flash-resident `Proto`.** Only `code` is inert; `k`, `p` and upvalue
-  arrays hold heap pointers/GC refs and must stay in RAM.
 
 ### Method and caveats
 
