@@ -25,28 +25,34 @@ text.
 
 ### Lua heap (the tunable part)
 
-On-device `LUA_MEM_DEBUG` deltas between the boot markers (current build: S1
-lazy tables + S2 strip):
+On-device `LUA_MEM_DEBUG` deltas between the boot markers. Current build:
+S1 (lazy tables) + S2 (debug strip) + S6 (32-bit float numbers):
 
 | item | size | marker delta |
 |---|---:|---|
-| Lua state (empty) | 2,595 B | `state − boot` |
-| base/table/string/math libraries | 9,873 B | `stdlib − state` |
-| `microbit.*` API namespace tables | 2,186 B | `api − stdlib` |
-| embedded script `Proto` + API names (with debug info) | 21,376 B | `loaded − api` |
+| Lua state (empty) | 2,143 B | `state − boot` |
+| base/table/string/math libraries | 7,777 B | `stdlib − state` |
+| `microbit.*` API namespace tables | 1,742 B | `api − stdlib` |
+| embedded script `Proto` + API names (with debug info) | 19,656 B | `loaded − api` |
 | ↳ debug info, freed by S2 | 7,740 B | `stripped − loaded` |
-| ↳ stripped `Proto` + API names | 13,636 B | `stripped − api` |
-| names materialised by the script + runtime state | 2,547 B | `ran − stripped` |
+| ↳ stripped `Proto` + API names | 11,916 B | `stripped − api` |
+| names materialised by the script + runtime state | 1,659 B | `ran − stripped` |
 
-With S1 the API tables hold only the subtables and metatables at boot (2,186 B
-versus 16,575 B when eagerly registered). Names the script actually uses are
-interned when its chunk is loaded and materialised as it runs, which is why
-`loaded − api` is larger here than in the eager-build measurement below.
+Steady state (`ran`) is 25,237 B. The same markers on the double build (S1+S2,
+no S6) ended at 30,837 B, so S6 saves a further 5,600 B; against the original
+eager + debug build (`ran` 48,249 B) the three changes save 23,012 B.
 
-#### `microbit.*` table breakdown (if eagerly registered)
+With S1 the API tables hold only the subtables and metatables at boot (1,742 B
+versus 16,575 B when eagerly registered, both measured with `double`). Names the
+script actually uses are interned when its chunk is loaded and materialised as
+it runs, which is why `loaded − api` is larger here than in the eager-build
+measurement below.
+
+#### `microbit.*` table breakdown (if eagerly registered, `double`)
 
 LP32 sizes (identical to the ARM target): `TValue`=16, `Node`=32, `CClosure`=40,
-`TString`=16, `Table`=36.
+`TString`=16, `Table`=36. (Under S6/`float` they are `TValue`=8, `Node`=20,
+`CClosure`=28, `UpVal`=20; `TString` and `Table` are unchanged.)
 
 | item | count | bytes |
 |---|---:|---:|
@@ -60,26 +66,28 @@ Per-table node counts: `microbit` 64, `display` 32, `serial` 32, `io` 32,
 `compass` 16, `ble.uart` 16, `accelerometer` 8, `radio` 8, `audio` 4, `i2c` 2,
 `ble` 1. (`microbit` has 58 fields — 8 functions + 9 subtables + 41 constants —
 which forces a 64-node table.) This whole cost is what S1 removes at boot: after
-S1, `api − stdlib` = 2,186 B.
+S1 + S6, `api − stdlib` = 1,742 B.
 
 #### Embedded script `Proto` breakdown
 
-Measured on the eager build (before S1, so the API names are already interned),
-with the stripped bytecode dump as a cross-check (39 protos, 1015 instructions,
+With the stripped bytecode dump as a cross-check (39 protos, 1015 instructions,
 215 numeric constants, 184 string constants):
 
 | portion | size |
 |---|---:|
-| loaded `Proto` with debug info (`loaded − api`, eager) | 19,640 B |
+| loaded `Proto` with debug info (`loaded − api`, current/S6) | 19,656 B |
 | debug info (`lineinfo`, `locvars`, upvalue names), freed by S2 | 7,740 B |
-| stripped `Proto` (`stripped − api`, eager) | 11,900 B |
-| raw `code` arrays (dump) | 4,060 B |
+| stripped `Proto` + API names (`stripped − api`, current/S6) | 11,916 B |
+| ↳ raw `code` arrays (dump) | 4,060 B |
 
-Under S1, ~1.7 KB of API name strings are interned when the chunk is loaded
-rather than at registration, so `loaded − api` rises to 21,376 B there.
+On the eager `double` build (before S1, API names already interned) the same
+`loaded`/`stripped` deltas were 19,640 B / 11,900 B. S1 moves ~1.7 KB of API
+name strings from registration into chunk load, while S6 halves the 215 numeric
+constants (16→8 B each, −1,720 B); the two roughly cancel.
 
 The text parser always generates the debug info; S2 frees it after load.
-Combined with S1, the steady-state heap (`ran`) fell from 48,249 B to 30,837 B.
+Combined with S1 and S6, the steady-state heap (`ran`) fell from 48,249 B to
+25,237 B.
 
 ## Part 2 — strategies to lower RAM
 
@@ -157,6 +165,22 @@ The script-only win is ~2 KB; the larger API-name win is handled by S1
 (implemented), which needs no VM changes. This is the eLua "LTR" / LuatOS class
 of change.
 
+### S6. 32-bit float Lua numbers — implemented, 5.6 KB
+
+`LUA_NUMBER_IS_FLOAT` (codal.json) selects `float` instead of `double`, via a
+small in-place patch of Lua's `luaconf.h` (`source/luaconf-float.patch`, applied
+idempotently from CMake; to become a commit in the Lua fork). It halves `TValue`
+(16→8) and shrinks `Node` (32→20), `CClosure` (40→28), `UpVal` (32→20) and Lua
+stack slots; the number formatting/parsing macros move to `"%.9g"`/`strtof`.
+The Cortex-M4 single-precision FPU also makes arithmetic faster. On device the
+steady-state heap fell by a further 5,600 B (`ran` 30,837→25,237 B).
+
+Caveat: a 24-bit mantissa makes integers above 2^24 approximate
+(`microbit.systemTime()` and event timestamps past ~4 h 39 m, large literals).
+`microbit.serialNumber()` now returns an exact decimal **string** to keep the
+32-bit device ID lossless (API change). `LUAI_USER_ALIGNMENT_T` and the string
+layout are untouched.
+
 ### Rejected: true flash-resident `Proto`
 
 Aliasing the dumped `code` arrays into flash would avoid only the ~4 KB of
@@ -182,3 +206,8 @@ cost/benefit.
   needs `"DMESG_SERIAL_DEBUG": 1`. If `CODAL_DEBUG >= 2` as well, each tag also
   calls `device_heap_print()` (CODAL allocator `mb_total_used`/`mb_total_free`).
   Config changes require `./build.py --clean`.
+- Number type: S6 is selected by `LUA_NUMBER_IS_FLOAT`; `source/luaconf-float.patch`
+  is applied in place from CMake with a content guard, so it is a no-op once
+  `libraries/` is patched. `LUAI_USER_ALIGNMENT_T` (`double`) is deliberately
+  left unchanged, so string/userdata alignment does not depend on the number
+  type.

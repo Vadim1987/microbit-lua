@@ -27,6 +27,11 @@
 	// to be visible, and CODAL_DEBUG=2 to also dump the CODAL heap.
 	// ! Must do a clean build after changing it: ./build.py --clean
 	"LUA_MEM_DEBUG": 0,
+	// Store Lua numbers as 32-bit float instead of double: smaller TValue and
+	// hardware single-precision arithmetic. Integers above 2^24 become
+	// approximate.
+	// ! Must do a clean build after changing it: ./build.py --clean
+	"LUA_NUMBER_IS_FLOAT": 1,
 	// Whether to compile in the BLE services.
 	// ! Must do a clean build after changing it: ./build.py --clean
         "DEVICE_BLE": 1,

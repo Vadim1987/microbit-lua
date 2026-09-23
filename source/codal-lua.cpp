@@ -1,4 +1,5 @@
 // -*- mode: c++; indent-tabs-mode: nil; -*-
+#include <stdio.h>
 #include <string.h>
 
 extern "C" {
@@ -39,7 +40,10 @@ I2C &i2c = uBit.i2c;
     F(systemTime, { lua_pushinteger(L, (lua_Integer)uBit.systemTime());	\
                     return 1;						\
                   })							\
-    F(serialNumber, { lua_pushinteger(L, microbit_serial_number());	\
+    F(serialNumber, { char buf[12];					\
+                    snprintf(buf, sizeof buf, "%lu",			\
+                             (unsigned long)microbit_serial_number());	\
+                    lua_pushstring(L, buf);				\
                     return 1;						\
                   })							\
     F(friendlyName, { lua_pushstring(L, microbit_friendly_name());	\

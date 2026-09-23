@@ -362,6 +362,25 @@ if(NOT EXISTS ${LUA_DIR})
     )
 endif()
 
+# Make LUA_NUMBER overridable (LUA_NUMBER_IS_FLOAT) and add float-tuned number
+# formatting/parsing. Applied in place because lua.h includes luaconf.h by
+# quoted include, so a shadow header cannot take precedence. The content guard
+# makes this a no-op once libraries/ has already been patched (it survives a
+# clean build). To be replaced by a commit in the Lua fork.
+set(LUACONF "${LUA_SRC_DIR}/luaconf.h")
+file(READ "${LUACONF}" _luaconf)
+string(FIND "${_luaconf}" "LUA_NUMBER_IS_FLOAT" _luaconf_patched)
+if(_luaconf_patched EQUAL -1)
+    execute_process(
+        COMMAND patch --forward --batch "${LUACONF}"
+                "${CMAKE_SOURCE_DIR}/source/luaconf-float.patch"
+        RESULT_VARIABLE _luaconf_patch_rc
+    )
+    if(NOT _luaconf_patch_rc EQUAL 0)
+        message(FATAL_ERROR "Failed to patch luaconf.h (${_luaconf_patch_rc})")
+    endif()
+endif()
+
 set(LUA_CORE_SOURCES
     lapi.c lcode.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c
     lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c ltm.c
