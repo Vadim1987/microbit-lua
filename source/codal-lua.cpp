@@ -12,6 +12,7 @@ extern "C" {
 #include "MicroBit.h"
 #include "Event.h"
 #include "I2C.h"
+#include "stack-probe.h"
 
 extern MicroBit uBit;
 
@@ -48,6 +49,12 @@ I2C &i2c = uBit.i2c;
                   })							\
     F(friendlyName, { lua_pushstring(L, microbit_friendly_name());	\
                     return 1;						\
+                  })							\
+    F(stackUsage, { lua_pushinteger(L, (lua_Integer)stack_probe_peak());	\
+                    return 1;						\
+                  })							\
+    F(stackReset, { stack_probe_paint();				\
+                    return 0;						\
                   })							\
     F(panic,      { int statusCode = (int)luaL_checkinteger(L, 1);      \
                     microbit_panic(statusCode);				\
