@@ -15,13 +15,45 @@ Total RAM is 128 KB (`0x20000000`–`0x20020000`).
 | SoftDevice (BLE blob) | ~8 KB | `0x20000000`–`0x20002040`, outside the app linker region |
 | `.data` | 0.7 KB | initialized C/C++ data, copied from flash |
 | `.bss` | 8.1 KB | zero-initialized C/C++ data |
-| `.stack` | 8 KB | one shared execution stack for all fibers (raised from 2 KB after stack-guard panics) |
+| `.stack` | 8 KB | one shared execution stack for all fibers (raised from 2 KB after stack-guard panics); measured usage in *Stack* below |
 | heap | ~103 KB | everything else; grows up to the stack floor |
 
 The embedded Lua script is **not** in RAM: `source/lua-script.lua` is
 `objcopy`'d into the read-only `.lua_script` flash section and read in place via
 `__lua_meta.start` (`source/main.cpp`). The cost is the parsed `Proto`, not the
 text.
+
+### Stack
+
+This port pages every fiber through one shared execution stack at the top of RAM,
+`[stack_limit(), fiber_initial_stack_base())` (`__StackLimit`..`__StackTop`,
+8 KB, set by `__StackSize` in `source/nrf52833*.ld.patch`). The context switch
+copies only the used range (`CortexContextSwitch.s`), so the shared region holds
+the running fiber's live frames; inactive fibers sit in heap buffers sized by
+`verify_stack_size`.
+
+`source/stack-probe.c` measures the high-water mark: it paints the free part of
+the region with a pattern at boot, and `stack_probe_peak()` finds the deepest
+address later overwritten. `microbit.stackUsage()` returns the peak in bytes,
+`microbit.stackReset()` re-paints, and `main()` prints
+`STACK <tag>: current=… peak=… region=…` at boot checkpoints (needs
+`DMESG_SERIAL_DEBUG`).
+
+On-device (region = 8192 B):
+
+| consumer | C stack |
+|---|---:|
+| parsing the embedded script (`luaL_loadbuffer`) | ~4.1–4.2 KB |
+| REPL/event chain (`on_event` → session → `submit` → `loadstring` → `pcall`) | ~2.5 KB |
+| Lua-to-Lua recursion | ~0 (handled by `luaV_execute`'s `newframe`; grows the Lua stack, not the C stack) |
+
+The two C-stack consumers are **additive in the REPL** — a submitted chunk is
+parsed inside the event chain — so a large user chunk can reach roughly
+`2.5 KB + parser depth`. Size for that sum plus margin for newlib `printf`/`%g`
+(dtoa) and nested IRQ/SoftDevice frames: 8 KB is a comfortable field value,
+7 KB is a plausible trim, and going lower needs the worst-case chunk measured.
+The guard panics (`DEVICE_STACK_OVERFLOW`) on overrun, and reducing `__StackSize`
+grows the heap, since heap end = `stack_limit()`.
 
 ### Lua heap (the tunable part)
 

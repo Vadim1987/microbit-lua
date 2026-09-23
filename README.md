@@ -103,6 +103,22 @@ port. You can also add `DMESG("hello");` lines to your own C++ code.
  - 2: heap allocation info
 
 
+## Stack usage
+
+The firmware always tracks the high-water mark of the shared fiber stack. From
+the REPL:
+
+```lua
+microbit.stackUsage()   -- peak stack bytes used since boot (or the last reset)
+microbit.stackReset()   -- restart the measurement
+```
+
+With `DMESG_SERIAL_DEBUG` enabled, `main()` also prints
+`STACK <tag>: current=… peak=… region=…` at boot. On the current script the
+deepest user is the Lua parser (~4 KB) parsing the embedded chunk; see
+`docs/ram-usage.md` for the breakdown and sizing guidance.
+
+
 # Where
 
 The project's home is at
