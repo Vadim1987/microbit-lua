@@ -228,9 +228,6 @@ Image luaL_checkimage(lua_State *L, int narg) {
                     return 0;						\
                   })
 
-// I failed counting X expansions in LUA_DISPLAY_FUNCTIONS automatically
-#define LUA_DISPLAY_COUNT 21
-
 // see https://rneacy.dev/mbv2/ubit/accelerometer/
 #define LUA_ACCELEROMETER_FUNCTIONS					\
     X(setPeriod,  { int period = luaL_checkint(L, 1);			\
@@ -269,8 +266,6 @@ Image luaL_checkimage(lua_State *L, int narg) {
                     lua_pushinteger(L, r);				\
                     return 1;						\
                   })
-
-#define LUA_ACCELEROMETER_COUNT 6
 
 // see https://rneacy.dev/mbv2/ubit/compass/
 #define LUA_COMPASS_FUNCTIONS						\
@@ -351,8 +346,6 @@ Image luaL_checkimage(lua_State *L, int narg) {
                     return 3;						\
                   })
 
-#define LUA_COMPASS_COUNT 14
-
 #define LUA_AUDIO_FUNCTIONS						\
     X(getAudioPin, { lua_pushlightuserdata(L,				\
                       &uBit.audio.virtualOutputPin);			\
@@ -370,8 +363,6 @@ Image luaL_checkimage(lua_State *L, int narg) {
                     uBit.audio.soundExpressions.playAsync(expression);	\
                     return 0;						\
                   })
-
-#define LUA_AUDIO_COUNT 4
 
 Pin *luaL_checkPin(lua_State *L, int narg) {
   luaL_checktype(L, narg, LUA_TLIGHTUSERDATA);
@@ -592,8 +583,6 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     return 1;						\
                   })
 
-#define LUA_IO_COUNT 32
-
 void lua_pushManagedString(lua_State *L, ManagedString s) {
   lua_pushlstring(L, s.toCharArray(), s.length());
 }
@@ -756,8 +745,6 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
                     return 1;						\
                   })
 
-#define LUA_SERIAL_COUNT 25
-
 #if CONFIG_ENABLED(DEVICE_BLE)
 #include "MicroBitUARTService.h"
 
@@ -863,7 +850,6 @@ extern MicroBitUARTService *uart;
                     return 1;						\
                   })
 
-#define LUA_BLE_COUNT 14
 #endif // CONFIG_ENABLED(DEVICE_BLE)
 
 #define LUA_I2C_FUNCTIONS						\
@@ -888,8 +874,6 @@ extern MicroBitUARTService *uart;
                       return luaL_error(L, "i2c write error");		\
                     }							\
                   })
-
-#define LUA_I2C_COUNT 2
 
 #define LUA_RADIO_FUNCTIONS						\
     X(setTransmitPower, {						\
@@ -938,8 +922,6 @@ extern MicroBitUARTService *uart;
                     lua_pushboolean(L, r == MICROBIT_OK);		\
                     return 1;						\
                   })
-
-#define LUA_RADIO_COUNT 8
 
 #define LUA_CODAL_CONSTANTS \
     X(MICROBIT_ID_LOGO) \
@@ -1071,35 +1053,41 @@ static const luaL_Reg l_i2c[] = {
 };
 #undef X
 
+// Number of registered entries in a luaL_Reg table, excluding the trailing
+// {NULL, NULL} terminator. Used as the lua_createtable hash size hint.
+#define LUA_REG_VECTOR_COUNT(a) ((int)(sizeof(a) / sizeof((a)[0]) - 1))
+
 void register_lua_api(lua_State *L) {
+  // l_microbit needs no explicit count: luaL_register() sizes the `microbit`
+  // table via libsize().
   luaL_register(L, "microbit", l_microbit);
-  lua_createtable(L, 0, LUA_DISPLAY_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_display));
   luaL_register(L, NULL, l_display);
   lua_setfield(L, -2, "display");
-  lua_createtable(L, 0, LUA_ACCELEROMETER_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_accelerometer));
   luaL_register(L, NULL, l_accelerometer);
   lua_setfield(L, -2, "accelerometer");
-  lua_createtable(L,0, LUA_COMPASS_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_compass));
   luaL_register(L, NULL, l_compass);
   lua_setfield(L, -2, "compass");
-  lua_createtable(L, 0, LUA_AUDIO_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_audio));
   luaL_register(L, NULL, l_audio);
   lua_setfield(L, -2, "audio");
-  lua_createtable(L, 0, LUA_IO_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_io));
   luaL_register(L, NULL, l_io);
   lua_setfield(L, -2, "io");
-  lua_createtable(L, 0, LUA_SERIAL_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_serial));
   luaL_register(L, NULL, l_serial);
   lua_setfield(L, -2, "serial");
-  lua_createtable(L, 0, LUA_RADIO_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_radio));
   luaL_register(L, NULL, l_radio);
   lua_setfield(L, -2, "radio");
-  lua_createtable(L, 0, LUA_I2C_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_i2c));
   luaL_register(L, NULL, l_i2c);
   lua_setfield(L, -2, "i2c");
 #if CONFIG_ENABLED(DEVICE_BLE)
   lua_createtable(L, 0, 1);                 // microbit.ble
-  lua_createtable(L, 0, LUA_BLE_COUNT);
+  lua_createtable(L, 0, LUA_REG_VECTOR_COUNT(l_ble_uart));
   luaL_register(L, NULL, l_ble_uart);
   lua_setfield(L, -2, "uart");
   lua_setfield(L, -2, "ble");
