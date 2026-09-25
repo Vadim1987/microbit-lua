@@ -1361,12 +1361,6 @@ static void lua_set_lazy_index(lua_State *L, int idx, const LuaApi *api) {
   lua_setmetatable(L, idx);
 }
 
-// Push a namespace table whose entries are populated on first access.
-static void lua_push_namespace(lua_State *L, const LuaApi *api) {
-  lua_newtable(L);
-  lua_set_lazy_index(L, lua_gettop(L), api);
-}
-
 
 // module(), from lua-5.1.5/src/loadlib.c
 
@@ -1493,32 +1487,6 @@ void register_lua_modules(lua_State *L) {
   lua_setglobal(L, "package");
   lua_register(L, "module", ll_module);
   lua_register(L, "require", l_require);
-}
-
-void register_lua_api(lua_State *L) {
-  // Capture the absolute stack index of the microbit table because leftover
-  // entries from luaopen_* (base, table, string, math) sit below it — a
-  // relative index like -2 would target the wrong table.
-  lua_push_namespace(L, l_microbit);
-  int microbit_idx = lua_gettop(L);
-  lua_pushvalue(L, microbit_idx);
-  lua_setglobal(L, "microbit");
-
-  lua_push_namespace(L, l_display);       lua_setfield(L, microbit_idx, "display");
-  lua_push_namespace(L, l_accelerometer); lua_setfield(L, microbit_idx, "accelerometer");
-  lua_push_namespace(L, l_compass);       lua_setfield(L, microbit_idx, "compass");
-  lua_push_namespace(L, l_audio);         lua_setfield(L, microbit_idx, "audio");
-  lua_push_namespace(L, l_io);            lua_setfield(L, microbit_idx, "io");
-  lua_push_namespace(L, l_serial);        lua_setfield(L, microbit_idx, "serial");
-  lua_push_namespace(L, l_radio);         lua_setfield(L, microbit_idx, "radio");
-  lua_push_namespace(L, l_i2c);           lua_setfield(L, microbit_idx, "i2c");
-#if CONFIG_ENABLED(DEVICE_BLE)
-  lua_newtable(L);                                 // microbit.ble
-  int ble_idx = lua_gettop(L);
-  lua_push_namespace(L, l_ble_uart);
-  lua_setfield(L, ble_idx, "uart");
-  lua_setfield(L, microbit_idx, "ble");
-#endif
 }
 
 static lua_State *lua_state;

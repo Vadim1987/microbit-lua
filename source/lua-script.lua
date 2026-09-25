@@ -1,4 +1,7 @@
-local uBit = microbit
+local uBit = require("microbit")
+require("microbit.audio")
+require("microbit.display")
+require("microbit.serial")
 
 local heart = {
   width = 10,
@@ -310,6 +313,8 @@ handler[microbit.DEVICE_ID_SERIAL] = port_to_console
 
 -- TPBot Edu library
 -- Based on https://github.com/elecfreaks/pxt-TPBot/blob/master/V2.ts
+require("microbit.io")
+require("microbit.i2c")
 local getPin = microbit.io.getPin
 
 tpbot = {
@@ -462,6 +467,7 @@ local function greet()
 end
 
 function listen(name)
+  require("microbit.radio")
   microbit.radio.enable()
   while microbit.radio.listen() ~= name do end
   greet()
@@ -515,6 +521,7 @@ local function link_to_port()
 end
 
 function connect(name, timeout)
+  require("microbit.radio")
   microbit.radio.enable()
   if not microbit.radio.connect(name, timeout) then
     print("Connection timed out.")
