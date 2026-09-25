@@ -12,7 +12,6 @@ extern "C" {
 #endif
 
 void register_lua_modules(lua_State *L);
-void register_lua_api(lua_State *L);
 void register_lua_event_listener(lua_State *L);
 
 extern "C" void lua_strip_debug(lua_State *L);
