@@ -157,6 +157,7 @@ int main() {
 
     LUA_MEM_REPORT(L, "stdlib");
 
+    register_lua_modules(L);
     register_lua_api(L);
     // Register the MessageBus listener BEFORE running the script so that
     // events queued during / after script execution are never missed.
