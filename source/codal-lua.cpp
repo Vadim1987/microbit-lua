@@ -906,6 +906,11 @@ static int robot_send(lua_State *L, uint8_t *data, int length) {
   return 0;
 }
 
+static void robot_read(lua_State *L, uint8_t *data, int length) {
+  if (i2c.read(32, data, length) != MICROBIT_OK)
+    luaL_error(L, "i2c read error");
+}
+
 // Width in microseconds of the next high pulse on pin, -1 on timeout.
 // Polled: getPulseUs floods the Lua event handler with PulseIn ticks.
 static int pulse_width(Pin &pin, uint32_t timeout) {
@@ -1006,6 +1011,61 @@ static void tpbot2_header(uint8_t *data, int code, int count) {
                     data[7] = data[5];					\
                     data[8] = deg < 0 ? 2 : 1;				\
                     return robot_send(L, data, 9);			\
+                  })
+
+// Nezha 2 takes 8-byte commands: 255, 249, the motor (argument 1), then
+// five bytes.
+static int nezha2_send(lua_State *L, int b3, int b4, int b5, int b6, int b7) {
+  uint8_t data[8];
+  data[0] = 255;
+  data[1] = 249;
+  data[2] = robot_byte(L, 1, luaL_checkint(L, 1));
+  data[3] = b3;
+  data[4] = b4;
+  data[5] = b5;
+  data[6] = b6;
+  data[7] = b7;
+  return robot_send(L, data, 8);
+}
+
+#define LUA_NEZHA2_FUNCTIONS						\
+    F(motor_turn, {							\
+                    int amount = luaL_checkint(L, 2);			\
+                    int a = abs(amount);				\
+                    return nezha2_send(L, amount < 0 ? 2 : 1, 112,	\
+                      robot_byte(L, 2, a / 256),			\
+                      robot_byte(L, 3, luaL_checkint(L, 3)), a % 256);	\
+                  })							\
+    F(motor_goto, {							\
+                    int mode = robot_byte(L, 2, luaL_checkint(L, 2));	\
+                    int a = (luaL_checkint(L, 3) % 360 + 360) % 360;	\
+                    return nezha2_send(L, 0, 93, a / 256, mode, a % 256);\
+                  })							\
+    F(motor_reset, {							\
+                    return nezha2_send(L, 0, 29, 0, 245, 0);		\
+                  })							\
+    F(motor_spin, {							\
+                    int speed = luaL_checkint(L, 2);			\
+                    return nezha2_send(L, speed < 0 ? 2 : 1, 96,	\
+                      robot_byte(L, 2, abs(speed)), 245, 0);		\
+                  })							\
+    F(motor_position, {							\
+                    uint8_t p[4];					\
+                    nezha2_send(L, 0, 70, 0, 245, 0);			\
+                    uBit.sleep(4);					\
+                    robot_read(L, p, 4);				\
+                    uint32_t v = p[0] | p[1] << 8 | p[2] << 16 |	\
+                      (uint32_t)p[3] << 24;				\
+                    lua_pushnumber(L, (v % 3600) * 0.1f);		\
+                    return 1;						\
+                  })							\
+    F(motor_speed, {							\
+                    uint8_t s[2];					\
+                    nezha2_send(L, 0, 71, 0, 245, 0);			\
+                    uBit.sleep(3);					\
+                    robot_read(L, s, 2);				\
+                    lua_pushnumber(L, (s[1] * 256 + s[0]) * 0.0926f);	\
+                    return 1;						\
                   })
 
 
@@ -1449,6 +1509,10 @@ LUA_TPBOT_FUNCTIONS
 LUA_TPBOT2_FUNCTIONS
 #undef F
 
+#define F(name, body) static int l_nezha2_##name(lua_State *L) body
+LUA_NEZHA2_FUNCTIONS
+#undef F
+
 // One entry per public name of an API namespace: a method (func set) or an
 // event constant (func NULL, value set). Kept in flash; the namespace tables
 // reference these arrays and materialise entries on first access.
@@ -1536,6 +1600,19 @@ static const LuaApi l_tpbot[] = {
 static const LuaApi l_tpbot2[] = {
     LUA_TPBOT2_FUNCTIONS
     {"get_distance", l_tpbot_get_distance, 0},
+    {NULL, NULL, 0}
+};
+#undef F
+
+#define F(name, body) {#name, l_nezha2_##name, 0},
+static const LuaApi l_nezha2[] = {
+    LUA_NEZHA2_FUNCTIONS
+    {"TURNS", NULL, 1},
+    {"DEGREES", NULL, 2},
+    {"SECONDS", NULL, 3},
+    {"SHORTESTARC", NULL, 1},
+    {"CLOCKWISE", NULL, 2},
+    {"COUNTERCLOCKWISE", NULL, 3},
     {NULL, NULL, 0}
 };
 #undef F
@@ -1678,6 +1755,7 @@ static const LuaModule lua_modules[] = {
   {"planetx",                l_planetx},
   {"tpbot",                  l_tpbot},
   {"tpbot2",                 l_tpbot2},
+  {"nezha2",                 l_nezha2},
   {NULL, NULL}
 };
 
