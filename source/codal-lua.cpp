@@ -953,6 +953,61 @@ static int pulse_width(Pin &pin, uint32_t timeout) {
                     return 1;						\
                   })
 
+// TPBot 2 (TPBot Edu) frames a command as 255, 249, its code, the number
+// of parameters, then the parameters. Its sonar is the TPBot Classic one.
+static void tpbot2_header(uint8_t *data, int code, int count) {
+  data[0] = 255;
+  data[1] = 249;
+  data[2] = code;
+  data[3] = count;
+}
+
+#define LUA_TPBOT2_FUNCTIONS						\
+    F(set_car_light, {							\
+                    uint8_t data[7];					\
+                    tpbot2_header(data, 48, 3);				\
+                    data[4] = robot_byte(L, 1, luaL_checkint(L, 1));	\
+                    data[5] = robot_byte(L, 2, luaL_checkint(L, 2));	\
+                    data[6] = robot_byte(L, 3, luaL_checkint(L, 3));	\
+                    return robot_send(L, data, 7);			\
+                  })							\
+    F(set_motors_speed, {						\
+                    int left = luaL_checkint(L, 1);			\
+                    int right = luaL_checkint(L, 2);			\
+                    uint8_t data[7];					\
+                    tpbot2_header(data, 16, 3);				\
+                    data[4] = robot_byte(L, 1, abs(left));		\
+                    data[5] = robot_byte(L, 2, abs(right));		\
+                    data[6] = (left < 0) + 2 * (right < 0);		\
+                    return robot_send(L, data, 7);			\
+                  })							\
+    F(run_distance, {							\
+                    int mm = luaL_checkint(L, 1);			\
+                    if (mm == 0)					\
+                      return 0;						\
+                    int d = abs(mm);					\
+                    uint8_t data[7];					\
+                    tpbot2_header(data, 65, 3);				\
+                    data[4] = robot_byte(L, 1, d / 256);		\
+                    data[5] = d % 256;					\
+                    data[6] = mm < 0 ? 3 : 0;				\
+                    return robot_send(L, data, 7);			\
+                  })							\
+    F(turn, {								\
+                    int deg = luaL_checkint(L, 1);			\
+                    if (deg == 0)					\
+                      return 0;						\
+                    int d = abs(deg);					\
+                    uint8_t data[9];					\
+                    tpbot2_header(data, 66, 5);				\
+                    data[4] = robot_byte(L, 1, d / 256);		\
+                    data[5] = d % 256;					\
+                    data[6] = data[4];					\
+                    data[7] = data[5];					\
+                    data[8] = deg < 0 ? 2 : 1;				\
+                    return robot_send(L, data, 9);			\
+                  })
+
 
 /*
  * A link over radio datagrams.
@@ -1390,6 +1445,10 @@ LUA_I2C_FUNCTIONS
 LUA_TPBOT_FUNCTIONS
 #undef F
 
+#define F(name, body) static int l_tpbot2_##name(lua_State *L) body
+LUA_TPBOT2_FUNCTIONS
+#undef F
+
 // One entry per public name of an API namespace: a method (func set) or an
 // event constant (func NULL, value set). Kept in flash; the namespace tables
 // reference these arrays and materialise entries on first access.
@@ -1469,6 +1528,14 @@ static const LuaApi l_i2c[] = {
 #define F(name, body) {#name, l_tpbot_##name, 0},
 static const LuaApi l_tpbot[] = {
     LUA_TPBOT_FUNCTIONS
+    {NULL, NULL, 0}
+};
+#undef F
+
+#define F(name, body) {#name, l_tpbot2_##name, 0},
+static const LuaApi l_tpbot2[] = {
+    LUA_TPBOT2_FUNCTIONS
+    {"get_distance", l_tpbot_get_distance, 0},
     {NULL, NULL, 0}
 };
 #undef F
@@ -1610,6 +1677,7 @@ static const LuaModule lua_modules[] = {
 #endif
   {"planetx",                l_planetx},
   {"tpbot",                  l_tpbot},
+  {"tpbot2",                 l_tpbot2},
   {NULL, NULL}
 };
 
