@@ -1532,6 +1532,9 @@ static const LuaModule lua_modules[] = {
   {"microbit.serial",        l_serial},
   {"microbit.i2c",           l_i2c},
   {"microbit.radio",         l_radio},
+#if CONFIG_ENABLED(DEVICE_BLE)
+  {"microbit.ble.uart",      l_ble_uart},
+#endif
   {"planetx",                l_planetx},
   {NULL, NULL}
 };
