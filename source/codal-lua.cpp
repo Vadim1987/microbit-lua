@@ -12,6 +12,7 @@ extern "C" {
 #include "MicroBit.h"
 #include "Event.h"
 #include "I2C.h"
+#include "neopixel.h"
 #include "stack-probe.h"
 
 extern MicroBit uBit;
@@ -1230,6 +1231,24 @@ static bool radio_one(const char *body, int len)
 
 #define LUA_RADIO_COUNT 13
 
+int digitalRJ[] = { 8, 12, 14, 16 };
+
+#define LUA_PLANETX_FUNCTIONS						\
+   F(getDigitalPin, { int pin = digitalRJ[luaL_checkint(L, 1) - 1];	\
+                    lua_pushlightuserdata(L, &uBit.io.pin[pin]);	\
+                    return 1;						\
+                  })							\
+   F(neopixel_send, {							\
+                    Pin *pin = luaL_checkPin(L, 1);			\
+                    size_t length;					\
+                    const unsigned char *str =	(const unsigned char*)	\
+                      luaL_checklstring(L, 2, &length);			\
+                    codal::neopixel_send_buffer(*pin, str, length);	\
+                    return 0;						\
+                  })
+
+#define LUA_PLANETX_COUNT 2
+
 #define LUA_CODAL_CONSTANTS \
     C(MICROBIT_ID_LOGO) \
     C(DEVICE_ID_BUTTON_A) \
@@ -1284,6 +1303,7 @@ LUA_ACCELEROMETER_FUNCTIONS
 LUA_AUDIO_FUNCTIONS
 LUA_IO_FUNCTIONS
 LUA_SERIAL_FUNCTIONS
+LUA_PLANETX_FUNCTIONS
 #undef F
 
 #if CONFIG_ENABLED(DEVICE_BLE)
@@ -1342,6 +1362,10 @@ static const LuaApi l_io[] = {
 };
 static const LuaApi l_serial[] = {
     LUA_SERIAL_FUNCTIONS
+    {NULL, NULL, 0}
+};
+static const LuaApi l_planetx[] = {
+    LUA_PLANETX_FUNCTIONS
     {NULL, NULL, 0}
 };
 #undef F
@@ -1427,6 +1451,10 @@ void register_lua_api(lua_State *L) {
   lua_push_namespace(L, l_serial);        lua_setfield(L, microbit_idx, "serial");
   lua_push_namespace(L, l_radio);         lua_setfield(L, microbit_idx, "radio");
   lua_push_namespace(L, l_i2c);           lua_setfield(L, microbit_idx, "i2c");
+
+  lua_push_namespace(L, l_planetx);
+  lua_setglobal(L, "planetx");
+
 #if CONFIG_ENABLED(DEVICE_BLE)
   lua_newtable(L);                                 // microbit.ble
   int ble_idx = lua_gettop(L);
