@@ -422,7 +422,7 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
     F(getAnalogValue, {							\
                     Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->getAnalogValue();			\
-                    if(r >= 0 || r <= 1024) {				\
+                    if(r >= 0 && r <= 1024) {				\
                       lua_pushinteger(L, r);				\
                     } else {						\
                       lua_pushnil(L);					\
@@ -1416,7 +1416,7 @@ const int digitalRJ[] = { 8, 12, 14, 16 };
                   })							\
    F(trimpot,     { Pin *pin = luaL_checkPin(L, 1);			\
                     int r = pin->getAnalogValue();			\
-                    if(r >= 0 || r <= 1024) {				\
+                    if(r >= 0 && r <= 1024) {				\
                       lua_pushnumber(L, (lua_Number)r * 9.765625e-4);	\
                     } else {						\
                       lua_pushnil(L);					\
