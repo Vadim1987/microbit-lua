@@ -1,7 +1,9 @@
 local uBit = require("microbit")
 require("microbit.audio")
 require("microbit.display")
-require("microbit.serial")
+local radio = require("microbit.radio")
+local serial = require("microbit.serial")
+local tpbot = require("tpbot2")
 
 local heart = {
   width = 10,
@@ -19,12 +21,6 @@ uBit.audio.setVolume(20)
 uBit.audio.express("giggle")
 uBit.display.animate(heart, 1000, 5)
 uBit.display.scrollAsync(uBit.friendlyName())
-
-local serial = {
-  send = uBit.serial.send,
-  getCharAsync = uBit.serial.getCharAsync,
-  eventAfterAsync = uBit.serial.eventAfterAsync,
-}
 
 -- Output goes wherever the session being served takes it.
 -- The serial session names no other way out, so it falls to
@@ -312,10 +308,9 @@ end
 handler[microbit.DEVICE_ID_SERIAL] = port_to_console
 
 function robot_move(left, right, time)
-  local tpbot2 = require("tpbot2")
-  tpbot2.set_motors_speed(left, right)
+  tpbot.set_motors_speed(left, right)
   microbit.sleep(1000 * time)
-  tpbot2.set_motors_speed(0, 0)
+  tpbot.set_motors_speed(0, 0)
 end
 
 function turn(h)
@@ -323,11 +318,11 @@ function turn(h)
   if 6 < h then
     h = h - 12
   end
-  require("tpbot2").turn(-30 * h)
+  tpbot.turn(-30 * h)
 end
 
 function straight(l)
-  require("tpbot2").run_distance(110 * l)
+  tpbot.run_distance(110 * l)
 end
 
 local function button(value, btn)
@@ -374,7 +369,7 @@ end
 
 local radio_session = make_session({
   crlf_before_result = false,
-  send = function(text) microbit.radio.tx(text) end
+  send = function(text) radio.tx(text) end
 })
 
 
@@ -400,13 +395,12 @@ local function greet()
 end
 
 function listen(name)
-  require("microbit.radio")
-  microbit.radio.enable()
-  microbit.radio.listen(name)
+  radio.enable()
+  radio.listen(name)
   greet()
   while true do
-    if microbit.radio.answered(name) then greet() end
-    local piece = microbit.radio.rx()
+    if radio.answered(name) then greet() end
+    local piece = radio.rx()
     if piece then
       radio_session.run(function() typed(piece) end)
     end
@@ -440,7 +434,7 @@ local function port_to_link(value)
     typed_here = typed_here .. text
     local at = string.find(typed_here, "[\r\n]")
     while at do
-      microbit.radio.tx(typed_here:sub(1, at))
+      radio.tx(typed_here:sub(1, at))
       typed_here = typed_here:sub(at + 1)
       at = string.find(typed_here, "[\r\n]")
     end
@@ -449,14 +443,13 @@ end
 
 --- What the link says goes to the port
 local function link_to_port()
-  local piece = microbit.radio.rx()
+  local piece = radio.rx()
   if piece then write(piece) end
 end
 
 function connect(name, timeout)
-  require("microbit.radio")
-  microbit.radio.enable()
-  if not microbit.radio.connect(name, timeout) then
+  radio.enable()
+  if not radio.connect(name, timeout) then
     print("Connection timed out.")
     return
   end

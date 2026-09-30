@@ -1407,11 +1407,20 @@ static bool radio_one(const char *body, int len)
 
 #define LUA_RADIO_COUNT 13
 
-int digitalRJ[] = { 8, 12, 14, 16 };
+const int digitalRJ[] = { 8, 12, 14, 16 };
 
 #define LUA_PLANETX_FUNCTIONS						\
    F(getDigitalPin, { int pin = digitalRJ[luaL_checkint(L, 1) - 1];	\
                     lua_pushlightuserdata(L, &uBit.io.pin[pin]);	\
+                    return 1;						\
+                  })							\
+   F(trimpot,     { Pin *pin = luaL_checkPin(L, 1);			\
+                    int r = pin->getAnalogValue();			\
+                    if(r >= 0 || r <= 1024) {				\
+                      lua_pushnumber(L, (lua_Number)r * 9.765625e-4);	\
+                    } else {						\
+                      lua_pushnil(L);					\
+                    }							\
                     return 1;						\
                   })							\
    F(neopixel_send, {							\
@@ -1423,7 +1432,7 @@ int digitalRJ[] = { 8, 12, 14, 16 };
                     return 0;						\
                   })
 
-#define LUA_PLANETX_COUNT 2
+#define LUA_PLANETX_COUNT 3
 
 #define LUA_CODAL_CONSTANTS \
     C(MICROBIT_ID_LOGO) \
