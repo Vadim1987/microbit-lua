@@ -1239,10 +1239,13 @@ static bool radio_take(uint8_t kind, uint8_t link,
     if (radio_wanted(p.getBytes(), n, kind, link, from,
                      num, body, len)) return true;
     /* Beacons come every second or two and are never held; a
-     * calling board notes the one from the board it called */
+     * calling board notes the one from the board it called, as
+     * long as that board still waits for this one */
     if (n > 0 && p.getBytes()[0] == RADIO_BEACON) {
-        if (radio_calling && n >= RADIO_HEAD + RADIO_NAME
-            && memcmp(p.getBytes() + RADIO_HEAD, radio_peer,
+        const uint8_t *b = p.getBytes() + RADIO_HEAD;
+        if (radio_calling && n == RADIO_HEAD + 2 * RADIO_NAME
+            && memcmp(b, radio_peer, RADIO_NAME) == 0
+            && memcmp(b + RADIO_NAME, microbit_friendly_name(),
                       RADIO_NAME) == 0)
             radio_heard = uBit.systemTime();
         return false;
