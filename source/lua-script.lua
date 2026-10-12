@@ -382,6 +382,8 @@ uBit.accelerometer.getSample()
 -- session of its own, and what the session says goes back the
 -- same way. All the while it sends beacons, which say who it
 -- is and whom it waits for; scan() elsewhere lists them.
+-- listen() typed over the link changes whom it waits for, and
+-- lets go of the board that typed it.
 -- Ctrl+C or Ctrl+D on this board's own port ends it: the link
 -- is closed, and both boards are back at their consoles.
 --
@@ -401,13 +403,22 @@ local function greet()
   radio_session.run(radio_session.prompt)
 end
 
+local listening = false
+local awaited   -- the board listen() waits for; nil for any
+
 function listen(name)
+  awaited = name
+  if listening then
+    radio.close()
+    return
+  end
+  listening = true
   radio.enable()
   while not typing():find("[\3\4]") do
-    radio.beacon(name)
-    local caller = radio.answered(name)
+    radio.beacon(awaited)
+    local caller = radio.answered(awaited)
     if caller then
-      name = caller
+      awaited = caller
       greet()
     end
     local piece = radio.rx()
@@ -416,8 +427,12 @@ function listen(name)
     end
     uBit.sleep(5)
   end
+  listening = false
   radio.close()
 end
+
+local peer       -- the board connect() reached
+local mid_line   -- what it sent last left a line open on the port
 
 --- The link is closed, and the port and the console's voice
 --- go back to the console
@@ -426,7 +441,7 @@ local function disconnect()
   typed_to = to_console
   handler[uBit.DEVICE_ID_RADIO] = nil
   serial_session.send = nil
-  write("\n")
+  write((mid_line and "\n" or "") .. peer .. " disconnected.\n")
   serial_session.prompt()
 end
 
@@ -454,6 +469,7 @@ local function link_to_port()
   local piece = radio.rx()
   if piece then
     serial.send(piece)
+    mid_line = piece:sub(-1) ~= "\n"
   elseif piece == false then
     disconnect()
   end
@@ -466,6 +482,8 @@ function connect(name, timeout)
     return
   end
   print(name .. " connected.")
+  peer = name
+  mid_line = false
   typed_to = to_link
   handler[uBit.DEVICE_ID_RADIO] = link_to_port
   serial_session.send = function() end
