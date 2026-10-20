@@ -1642,6 +1642,76 @@ static const char *const gesture_name[] = {
   "clockwise", "counter-clockwise", "wave"
 };
 
+// PlanetX color sensor EF05006 of the kind at I2C address 0x43. It is
+// set up and read as Elecfreaks do: an integration time at 0x81, power
+// at 0x80, then red, green, blue and clear light, two bytes each, from
+// 0xA0 on, low byte first as in memory here.
+#define COLOR_SENSOR 0x86
+
+static bool color_read(uint16_t light[4]) {
+  return i2c.readRegister(COLOR_SENSOR, 0xA0, (uint8_t *)light, 8)
+    == MICROBIT_OK;
+}
+
+// Set up as Elecfreaks do, the sensor gives a first measurement after
+// the 150 ms they wait. Without a sensor the first write fails at once.
+static bool color_init(uint16_t light[4]) {
+  uint8_t integration[] = { 0x81, 0xCA }, power[] = { 0x80, 0x17 };
+  if (i2c.write(COLOR_SENSOR, integration, 2) != MICROBIT_OK)
+    return false;
+  i2c.write(COLOR_SENSOR, power, 2);
+  uBit.sleep(150);
+  return color_read(light);
+}
+
+// The light of the four channels, or an error without a sensor. One not
+// answering, at first or plugged in again, is set up anew.
+static void color_light(lua_State *L, uint16_t light[4]) {
+  static bool ready = false;
+  if (ready && color_read(light))
+    return;
+  ready = color_init(light);
+  if (!ready)
+    luaL_error(L, "no color sensor");
+}
+
+// Hue in degrees, saturation and value of the light, its channels taken
+// relative to those of a white LEGO brick 1 to 2 cm away, which gives
+// value 1.
+static void color_hsv(lua_State *L, float hsv[3]) {
+  static const float white[] = { 4443, 10312, 11104 };
+  uint16_t light[4];
+  float c[3], max, min, d;
+  color_light(L, light);
+  for (int i = 0; i < 3; i++)
+    c[i] = light[i] / white[i];
+  max = fmaxf(c[0], fmaxf(c[1], c[2]));
+  min = fminf(c[0], fminf(c[1], c[2]));
+  d = max - min;
+  hsv[0] = d == 0 ? 0
+    : max == c[0] ? fmodf(60 * (c[1] - c[2]) / d + 360, 360)
+    : max == c[1] ? 60 * (c[2] - c[0]) / d + 120
+    : 60 * (c[0] - c[1]) / d + 240;
+  hsv[1] = d == 0 ? 0 : d / max;
+  hsv[2] = max;
+}
+
+// The color numbered as bits of blue, red and green: 1 blue, 2 red,
+// 3 magenta, 4 green, 5 cyan, 6 yellow, 7 white, or 0 for dark or grey.
+// The hues dividing them are those LEGO bricks were seen to sit between.
+static int color_number(const float hsv[3]) {
+  static const uint16_t bound[] = { 25, 80, 180, 222, 270, 345 };
+  static const uint8_t number[] = { 2, 6, 4, 5, 1, 3, 2 };
+  int i = 0;
+  if (hsv[2] < 0.1f)
+    return 0;
+  if (hsv[1] < 0.25f)
+    return hsv[2] < 0.5f ? 0 : 7;
+  while (i < 6 && hsv[0] >= bound[i])
+    i++;
+  return number[i];
+}
+
 const int digitalRJ[] = { 8, 12, 14, 16 };
 
 #define LUA_PLANETX_FUNCTIONS						\
@@ -1679,9 +1749,30 @@ const int digitalRJ[] = { 8, 12, 14, 16 };
                         gesture_name[__builtin_ctz(flags)]);		\
                     }							\
                     return 1;						\
+                  })							\
+/* rgb() -> red, green, blue and clear light as measured */		\
+   F(rgb,         { uint16_t light[4];					\
+                    color_light(L, light);				\
+                    for (int i = 0; i < 4; i++)				\
+                      lua_pushinteger(L, light[i]);			\
+                    return 4;						\
+                  })							\
+/* hsv() -> hue in degrees, saturation, value 1 for a white brick */	\
+   F(hsv,         { float hsv[3];					\
+                    color_hsv(L, hsv);				\
+                    for (int i = 0; i < 3; i++)				\
+                      lua_pushnumber(L, hsv[i]);			\
+                    return 3;						\
+                  })							\
+/* color() -> 1 blue, 2 red, 3 magenta, 4 green, 5 cyan, 6 yellow,	\
+   7 white, or 0 */							\
+   F(color,       { float hsv[3];					\
+                    color_hsv(L, hsv);				\
+                    lua_pushinteger(L, color_number(hsv));		\
+                    return 1;						\
                   })
 
-#define LUA_PLANETX_COUNT 4
+#define LUA_PLANETX_COUNT 7
 
 #define LUA_CODAL_CONSTANTS \
     C(MICROBIT_ID_LOGO) \
