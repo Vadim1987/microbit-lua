@@ -1560,6 +1560,88 @@ static bool radio_one(uint8_t kind, const char *body, int len)
 
 #define LUA_RADIO_COUNT 15
 
+// PlanetX gesture sensor EF05020: a PAJ7620 at I2C address 0x73.
+#define PAJ7620 0xE6
+
+// The chip's settings for bank 0 and then bank 1, in runs of registers
+// that follow each other: the number of bytes in a run, its first
+// register, then the values for that register and the ones after it, as
+// the chip moves on to the next by itself. The run at 0xEE ends on 0xEF,
+// the bank register, and so switches to bank 1; the last run switches
+// back. The settings are those Elecfreaks send.
+static const uint8_t paj7620_setup[] = {
+  10, 0x32, 0x29, 0x01, 0x00, 0x01, 0x00, 0x07, 0x17, 0x06, 0x12,
+  5, 0x3F, 0x00, 0x02, 0xFF, 0x01,
+  14, 0x46, 0x2D, 0x0F, 0x3C, 0x00, 0x1E, 0x00, 0x20, 0x00, 0x1A, 0x14,
+  0x00, 0x10, 0x00,
+  16, 0x5C, 0x02, 0x00, 0x10, 0x3F, 0x27, 0x28, 0x00, 0x03, 0xF7, 0x03,
+  0xD9, 0x03, 0x01, 0xC8, 0x40,
+  10, 0x6D, 0x04, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0xF0, 0x00,
+  45, 0x80, 0x42, 0x44, 0x04, 0x20, 0x20, 0x00, 0x10, 0x00, 0x05, 0x18,
+  0x10, 0x01, 0x37, 0x00, 0xF0, 0x81, 0x06, 0x06, 0x1E, 0x0D, 0x0A, 0x0A,
+  0x0C, 0x05, 0x0A, 0x41, 0x14, 0x0A, 0x3F, 0x33, 0xAE, 0xF9, 0x48, 0x13,
+  0x10, 0x08, 0x30, 0x19, 0x10, 0x08, 0x24, 0x04, 0x1E, 0x1E,
+  8, 0xCC, 0x19, 0x0B, 0x13, 0x64, 0x21, 0x0F, 0x88,
+  11, 0xE0, 0x01, 0x04, 0x41, 0xD6, 0x00, 0x0C, 0x0A, 0x00, 0x00, 0x00,
+  3, 0xEE, 0x07, 0x01,
+  32, 0x00, 0x1E, 0x1E, 0x0F, 0x10, 0x02, 0x00, 0xB0, 0x04, 0x0D, 0x0E,
+  0x9C, 0x04, 0x05, 0x0F, 0x02, 0x12, 0x02, 0x02, 0x00, 0x01, 0x05, 0x07,
+  0x05, 0x07, 0x01, 0x04, 0x05, 0x0C, 0x2A, 0x01, 0x00,
+  4, 0x21, 0x00, 0x00, 0x00,
+  6, 0x25, 0x01, 0x00, 0x39, 0x7F, 0x08,
+  12, 0x30, 0x03, 0x00, 0x1A, 0x1A, 0x07, 0x07, 0x01, 0xFF, 0x36, 0x07,
+  0x00,
+  12, 0x3E, 0xFF, 0x00, 0x77, 0x40, 0x00, 0x30, 0xA0, 0x5C, 0x00, 0x00,
+  0x58,
+  12, 0x4A, 0x1E, 0x1E, 0x00, 0x00, 0xA0, 0x80, 0x00, 0x00, 0x00, 0x00,
+  0x00,
+  2, 0x57, 0x80,
+  10, 0x59, 0x10, 0x08, 0x94, 0xE8, 0x08, 0x3D, 0x99, 0x45, 0x40,
+  14, 0x63, 0x2D, 0x02, 0x96, 0x00, 0x97, 0x01, 0xCD, 0x01, 0xB0, 0x04,
+  0x2C, 0x01, 0x32,
+  8, 0x71, 0x00, 0x01, 0x35, 0x00, 0x33, 0x31, 0x01,
+  4, 0x7C, 0x84, 0x03, 0x01,
+  2, 0xEF, 0x00,
+  0
+};
+
+// Asleep, the chip leaves the first access unanswered, wakes on it and
+// takes settings 400 us later. The I2C hardware takes what it sends by
+// DMA, which reaches RAM only, so the settings go over from a copy.
+// Gesture flags raised before the setup mean nothing and are read away.
+static bool paj7620_init() {
+  uint8_t bank0[] = { 0xEF, 0x00 }, flags[2], setup[sizeof paj7620_setup];
+  i2c.write(PAJ7620, bank0, 2);
+  target_wait_us(400);
+  memcpy(setup, paj7620_setup, sizeof setup);
+  for (uint8_t *run = setup; *run; run += *run + 1)
+    if (i2c.write(PAJ7620, run + 1, *run) != MICROBIT_OK)
+      return false;
+  return i2c.readRegister(PAJ7620, 0x43, flags, 2) == MICROBIT_OK;
+}
+
+// The gesture flags raised since the last read, which clears them, or -1
+// without a sensor. A sensor not answering, at first or plugged in
+// again, is set up anew and has no flags yet.
+static int gesture_flags() {
+  static bool ready = false;
+  uint8_t flags[2];
+  if (ready && i2c.readRegister(PAJ7620, 0x43, flags, 2) == MICROBIT_OK)
+    return flags[0] | (flags[1] & 1) << 8;
+  ready = paj7620_init();
+  return ready ? 0 : -1;
+}
+
+// Bits 0-7 of register 0x43, then bit 0 of 0x44, named as by Elecfreaks:
+// directions as seen facing the window with the socket to the left,
+// forward being towards the window. As with Elecfreaks, a gesture counts
+// only if its flag is the only one raised, except a wave, which raises
+// the flags of swipes as well.
+static const char *const gesture_name[] = {
+  "right", "left", "up", "down", "forward", "backward",
+  "clockwise", "counter-clockwise", "wave"
+};
+
 const int digitalRJ[] = { 8, 12, 14, 16 };
 
 #define LUA_PLANETX_FUNCTIONS						\
@@ -1583,9 +1665,23 @@ const int digitalRJ[] = { 8, 12, 14, 16 };
                       luaL_checklstring(L, 2, &length);			\
                     codal::neopixel_send_buffer(*pin, str, length);	\
                     return 0;						\
+                  })							\
+/* gesture() -> the gesture made since the last call, or nil */	\
+   F(gesture,     { int flags = gesture_flags();			\
+                    if (flags < 0)					\
+                      return luaL_error(L, "no gesture sensor");	\
+                    if (flags > 0x100)					\
+                      flags = 0x100;					\
+                    if (flags == 0 || flags & (flags - 1)) {		\
+                      lua_pushnil(L);					\
+                    } else {						\
+                      lua_pushstring(L,					\
+                        gesture_name[__builtin_ctz(flags)]);		\
+                    }							\
+                    return 1;						\
                   })
 
-#define LUA_PLANETX_COUNT 3
+#define LUA_PLANETX_COUNT 4
 
 #define LUA_CODAL_CONSTANTS \
     C(MICROBIT_ID_LOGO) \
