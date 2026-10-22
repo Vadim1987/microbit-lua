@@ -1642,13 +1642,15 @@ static const char *const gesture_name[] = {
   "clockwise", "counter-clockwise", "wave"
 };
 
-// PlanetX color sensor EF05006 comes in two kinds, set up and read as
-// Elecfreaks do. The newer, at I2C address 0x43, takes an integration
+// PlanetX color sensor EF05006 comes in two kinds, set up and read much
+// as Elecfreaks do. The newer, at I2C address 0x43, takes an integration
 // time at 0x81 and power at 0x80, and gives red, green, blue and clear
 // light from 0xA0 on. The older, an APDS9960 at 0x39, takes an
 // integration time at 0x81, gain at 0x8F and power at 0x80, and gives
 // clear, red, green and blue light from 0x94 on, read together and the
-// clear moved last. Each is two bytes, low byte first as in memory here.
+// clear moved last. Its gain is a quarter of theirs, as with theirs a
+// white brick comes near the most it can count. Each value is two bytes,
+// low byte first as in memory here.
 #define COLOR_NEW 0x86
 #define COLOR_OLD 0x72
 
@@ -1682,7 +1684,7 @@ static uint8_t color_init() {
     color_write(COLOR_NEW, 0x80, 0x17);
     sensor = COLOR_NEW;
   } else if (color_write(COLOR_OLD, 0x81, 0xFC)) {
-    color_write(COLOR_OLD, 0x8F, 0x03);
+    color_write(COLOR_OLD, 0x8F, 0x02);
     color_write(COLOR_OLD, 0x80, 0x03);
     sensor = COLOR_OLD;
   } else {
@@ -1707,7 +1709,7 @@ static void color_light(lua_State *L, uint16_t light[4]) {
 // 2 cm away, so that such a brick has value 1.
 static void color_hsv(lua_State *L, float hsv[3]) {
   static const float new_white[] = { 4443, 10312, 11104 },
-    old_white[] = { 1654, 3167, 3793 };
+    old_white[] = { 414, 792, 948 };
   uint16_t light[4];
   float c[3], max, min, d;
   color_light(L, light);
