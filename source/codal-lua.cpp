@@ -1621,7 +1621,10 @@ static bool paj7620_init() {
 }
 
 // The gesture flags raised since the last read, which clears them, or -1
-// without a sensor. A sensor not answering, at first or plugged in
+// without a sensor: bits 0-7 of register 0x43, then bit 0 of 0x44, for
+// right, left, up, down, forward, backward, clockwise, counter-clockwise
+// and wave, as Elecfreaks name them, seen facing the window with the
+// socket to the left. A sensor not answering, at first or plugged in
 // again, is set up anew and has no flags yet.
 static int gesture_flags() {
   static bool ready = false;
@@ -1631,16 +1634,6 @@ static int gesture_flags() {
   ready = paj7620_init();
   return ready ? 0 : -1;
 }
-
-// Bits 0-7 of register 0x43, then bit 0 of 0x44, named as by Elecfreaks:
-// directions as seen facing the window with the socket to the left,
-// forward being towards the window. As with Elecfreaks, a gesture counts
-// only if its flag is the only one raised, except a wave, which raises
-// the flags of swipes as well.
-static const char *const gesture_name[] = {
-  "right", "left", "up", "down", "forward", "backward",
-  "clockwise", "counter-clockwise", "wave"
-};
 
 // PlanetX color sensor EF05006 comes in two kinds, set up and read much
 // as Elecfreaks do. The newer, at I2C address 0x43, takes an integration
@@ -1770,29 +1763,29 @@ const int digitalRJ[] = { 8, 12, 14, 16 };
                     codal::neopixel_send_buffer(*pin, str, length);	\
                     return 0;						\
                   })							\
-/* gesture() -> the gesture made since the last call, or nil */	\
+/* gesture() -> 1 right, 2 left, 3 up, 4 down, 5 forward, 6 backward,	\
+   7 clockwise, 8 counter-clockwise, 9 wave, or 0. A gesture counts	\
+   only if its flag is the only one raised, as with Elecfreaks, but a	\
+   wave also with those of the swipes it is made of. */			\
    F(gesture,     { int flags = gesture_flags();			\
                     if (flags < 0)					\
                       return luaL_error(L, "no gesture sensor");	\
                     if (flags > 0x100)					\
                       flags = 0x100;					\
-                    if (flags == 0 || flags & (flags - 1)) {		\
-                      lua_pushnil(L);					\
-                    } else {						\
-                      lua_pushstring(L,					\
-                        gesture_name[__builtin_ctz(flags)]);		\
-                    }							\
+                    flags = flags == 0 || flags & (flags - 1) ? 0	\
+                      : __builtin_ctz(flags) + 1;			\
+                    lua_pushinteger(L, flags);				\
                     return 1;						\
                   })							\
-/* rgb() -> red, green, blue and clear light as measured */		\
-   F(rgb,         { uint16_t light[4];					\
+/* colorRGB() -> red, green, blue and clear light as measured */	\
+   F(colorRGB,    { uint16_t light[4];					\
                     color_light(L, light);				\
                     for (int i = 0; i < 4; i++)				\
                       lua_pushinteger(L, light[i]);			\
                     return 4;						\
                   })							\
-/* hsv() -> hue in degrees, saturation, value 1 for a white brick */	\
-   F(hsv,         { float hsv[3];					\
+/* colorHSV() -> hue in degrees, saturation, value 1 for white */	\
+   F(colorHSV,    { float hsv[3];					\
                     color_hsv(L, hsv);				\
                     for (int i = 0; i < 3; i++)				\
                       lua_pushnumber(L, hsv[i]);			\
