@@ -1707,7 +1707,7 @@ static void color_light(lua_State *L, uint16_t light[4]) {
 // 2 cm away, so that such a brick has value 1.
 static void color_hsv(lua_State *L, float hsv[3]) {
   static const float new_white[] = { 4443, 10312, 11104 },
-    old_white[] = { 1266, 2357, 2822 };
+    old_white[] = { 1654, 3167, 3793 };
   uint16_t light[4];
   float c[3], max, min, d;
   color_light(L, light);
@@ -1727,10 +1727,13 @@ static void color_hsv(lua_State *L, float hsv[3]) {
 
 // The color numbered as bits of blue, red and green: 1 blue, 2 red,
 // 3 magenta, 4 green, 5 cyan, 6 yellow, 7 white, or 0 when too dark.
-// The hues dividing them are those LEGO bricks were seen to sit between.
+// The hues dividing them are those LEGO bricks were seen to sit between
+// by each kind of sensor; the older sees blue nearer to cyan.
 static int color_number(const float hsv[3]) {
-  static const uint16_t bound[] = { 25, 80, 180, 222, 270, 345 };
+  static const uint16_t new_bound[] = { 25, 80, 180, 222, 270, 345 },
+    old_bound[] = { 16, 80, 180, 207, 270, 345 };
   static const uint8_t number[] = { 2, 6, 4, 5, 1, 3, 2 };
+  const uint16_t *bound = color_sensor == COLOR_NEW ? new_bound : old_bound;
   int i = 0;
   if (hsv[2] < 0.05f)
     return 0;
