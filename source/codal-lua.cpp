@@ -1642,36 +1642,60 @@ static const char *const gesture_name[] = {
   "clockwise", "counter-clockwise", "wave"
 };
 
-// PlanetX color sensor EF05006 of the kind at I2C address 0x43. It is
-// set up and read as Elecfreaks do: an integration time at 0x81, power
-// at 0x80, then red, green, blue and clear light, two bytes each, from
-// 0xA0 on, low byte first as in memory here.
-#define COLOR_SENSOR 0x86
+// PlanetX color sensor EF05006 comes in two kinds, set up and read as
+// Elecfreaks do. The newer, at I2C address 0x43, takes an integration
+// time at 0x81 and power at 0x80, and gives red, green, blue and clear
+// light from 0xA0 on. The older, an APDS9960 at 0x39, takes an
+// integration time at 0x81, gain at 0x8F and power at 0x80, and gives
+// clear, red, green and blue light from 0x94 on. Each is two bytes, low
+// byte first as in memory here.
+#define COLOR_NEW 0x86
+#define COLOR_OLD 0x72
 
-static bool color_read(uint16_t light[4]) {
-  return i2c.readRegister(COLOR_SENSOR, 0xA0, (uint8_t *)light, 8)
-    == MICROBIT_OK;
+// The kind of sensor found, or 0 before one is.
+static uint8_t color_sensor;
+
+static bool color_write(uint8_t sensor, uint8_t reg, uint8_t value) {
+  uint8_t data[] = { reg, value };
+  return i2c.write(sensor, data, 2) == MICROBIT_OK;
 }
 
-// Set up as Elecfreaks do, the sensor gives a first measurement after
-// the 150 ms they wait. Without a sensor the first write fails at once.
-static bool color_init(uint16_t light[4]) {
-  uint8_t integration[] = { 0x81, 0xCA }, power[] = { 0x80, 0x17 };
-  if (i2c.write(COLOR_SENSOR, integration, 2) != MICROBIT_OK)
-    return false;
-  i2c.write(COLOR_SENSOR, power, 2);
+// Red, green, blue and clear light from the sensor found.
+static bool color_read(uint16_t light[4]) {
+  if (color_sensor == COLOR_NEW)
+    return i2c.readRegister(COLOR_NEW, 0xA0, (uint8_t *)light, 8)
+      == MICROBIT_OK;
+  return i2c.readRegister(COLOR_OLD, 0x96, (uint8_t *)light, 6)
+      == MICROBIT_OK
+    && i2c.readRegister(COLOR_OLD, 0x94, (uint8_t *)(light + 3), 2)
+      == MICROBIT_OK;
+}
+
+// The kind that answers, set up and given the 150 ms Elecfreaks wait for
+// a first measurement, or 0 without a sensor.
+static uint8_t color_init() {
+  uint8_t sensor;
+  if (color_write(COLOR_NEW, 0x81, 0xCA)) {
+    color_write(COLOR_NEW, 0x80, 0x17);
+    sensor = COLOR_NEW;
+  } else if (color_write(COLOR_OLD, 0x81, 0xFC)) {
+    color_write(COLOR_OLD, 0x8F, 0x03);
+    color_write(COLOR_OLD, 0x80, 0x03);
+    sensor = COLOR_OLD;
+  } else {
+    return 0;
+  }
   uBit.sleep(150);
-  return color_read(light);
+  return sensor;
 }
 
 // The light of the four channels, or an error without a sensor. One not
-// answering, at first or plugged in again, is set up anew.
+// answering, at first or plugged in again, is looked for anew.
 static void color_light(lua_State *L, uint16_t light[4]) {
-  static bool ready = false;
-  if (ready && color_read(light))
+  if (color_sensor && color_read(light))
     return;
-  ready = color_init(light);
-  if (!ready)
+  color_sensor = color_init();
+  if (!color_sensor || !color_read(light))
     luaL_error(L, "no color sensor");
 }
 
