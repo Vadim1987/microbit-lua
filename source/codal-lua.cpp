@@ -1647,8 +1647,8 @@ static const char *const gesture_name[] = {
 // time at 0x81 and power at 0x80, and gives red, green, blue and clear
 // light from 0xA0 on. The older, an APDS9960 at 0x39, takes an
 // integration time at 0x81, gain at 0x8F and power at 0x80, and gives
-// clear, red, green and blue light from 0x94 on. Each is two bytes, low
-// byte first as in memory here.
+// clear, red, green and blue light from 0x94 on, read together and the
+// clear moved last. Each is two bytes, low byte first as in memory here.
 #define COLOR_NEW 0x86
 #define COLOR_OLD 0x72
 
@@ -1665,10 +1665,13 @@ static bool color_read(uint16_t light[4]) {
   if (color_sensor == COLOR_NEW)
     return i2c.readRegister(COLOR_NEW, 0xA0, (uint8_t *)light, 8)
       == MICROBIT_OK;
-  return i2c.readRegister(COLOR_OLD, 0x96, (uint8_t *)light, 6)
-      == MICROBIT_OK
-    && i2c.readRegister(COLOR_OLD, 0x94, (uint8_t *)(light + 3), 2)
-      == MICROBIT_OK;
+  if (i2c.readRegister(COLOR_OLD, 0x94, (uint8_t *)light, 8)
+      != MICROBIT_OK)
+    return false;
+  uint16_t clear = light[0];
+  memmove(light, light + 1, 3 * sizeof *light);
+  light[3] = clear;
+  return true;
 }
 
 // The kind that answers, set up and given the 150 ms Elecfreaks wait for
@@ -1700,13 +1703,15 @@ static void color_light(lua_State *L, uint16_t light[4]) {
 }
 
 // Hue in degrees, saturation and value of the light, its channels taken
-// relative to those of a white LEGO brick 1 to 2 cm away, which gives
-// value 1.
+// relative to what the sensor found gives for a white LEGO brick 1 to
+// 2 cm away, so that such a brick has value 1.
 static void color_hsv(lua_State *L, float hsv[3]) {
-  static const float white[] = { 4443, 10312, 11104 };
+  static const float new_white[] = { 4443, 10312, 11104 },
+    old_white[] = { 1266, 2357, 2822 };
   uint16_t light[4];
   float c[3], max, min, d;
   color_light(L, light);
+  const float *white = color_sensor == COLOR_NEW ? new_white : old_white;
   for (int i = 0; i < 3; i++)
     c[i] = light[i] / white[i];
   max = fmaxf(c[0], fmaxf(c[1], c[2]));
@@ -1721,16 +1726,16 @@ static void color_hsv(lua_State *L, float hsv[3]) {
 }
 
 // The color numbered as bits of blue, red and green: 1 blue, 2 red,
-// 3 magenta, 4 green, 5 cyan, 6 yellow, 7 white, or 0 for dark or grey.
+// 3 magenta, 4 green, 5 cyan, 6 yellow, 7 white, or 0 when too dark.
 // The hues dividing them are those LEGO bricks were seen to sit between.
 static int color_number(const float hsv[3]) {
   static const uint16_t bound[] = { 25, 80, 180, 222, 270, 345 };
   static const uint8_t number[] = { 2, 6, 4, 5, 1, 3, 2 };
   int i = 0;
-  if (hsv[2] < 0.1f)
+  if (hsv[2] < 0.05f)
     return 0;
   if (hsv[1] < 0.25f)
-    return hsv[2] < 0.5f ? 0 : 7;
+    return 7;
   while (i < 6 && hsv[0] >= bound[i])
     i++;
   return number[i];
