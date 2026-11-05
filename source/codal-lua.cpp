@@ -1,4 +1,5 @@
 // -*- mode: c++; indent-tabs-mode: nil; -*-
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -297,6 +298,29 @@ Image luaL_checkimage(lua_State *L, int narg) {
                     return 0;						\
                   })
 
+// Up: against the mean of this many accelerometer samples, one period
+// apart, as the accelerometer reads gravity pointing down. A board that
+// moves strays from its first sample further than this many mg.
+#define VERTICAL_SAMPLES 16
+#define VERTICAL_STRAY 40
+
+static int vertical(lua_State *L) {
+  Sample3D first = uBit.accelerometer.getSample();
+  Sample3D sum;
+  for (int i = 0; i < VERTICAL_SAMPLES; i++) {
+    uBit.sleep(uBit.accelerometer.getPeriod());
+    Sample3D s = uBit.accelerometer.getSample();
+    if (s.dSquared(first) > VERTICAL_STRAY * VERTICAL_STRAY) return 0;
+    sum = sum + s;
+  }
+  Sample3D origin;
+  float scale = -1 / sqrtf(sum.dSquared(origin));
+  lua_pushnumber(L, sum.x * scale);
+  lua_pushnumber(L, sum.y * scale);
+  lua_pushnumber(L, sum.z * scale);
+  return 3;
+}
+
 // see https://rneacy.dev/mbv2/ubit/accelerometer/
 #define LUA_ACCELEROMETER_FUNCTIONS					\
     F(setPeriod,  { int period = luaL_checkint(L, 1);			\
@@ -334,7 +358,10 @@ Image luaL_checkimage(lua_State *L, int narg) {
     F(getGesture, { uint16_t r = uBit.accelerometer.getGesture();	\
                     lua_pushinteger(L, r);				\
                     return 1;						\
-                  })
+                  })							\
+/* vertical() -> x, y, z of the unit vector up, or nothing when the board
+ * moved */								\
+    F(vertical,   { return vertical(L); })
 
 // see https://rneacy.dev/mbv2/ubit/compass/
 #define LUA_COMPASS_FUNCTIONS						\
