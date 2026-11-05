@@ -15,6 +15,7 @@ extern "C" {
 #include "I2C.h"
 #include "neopixel.h"
 #include "stack-probe.h"
+#include "compass-track.h"
 
 extern MicroBit uBit;
 
@@ -363,6 +364,59 @@ static int vertical(lua_State *L) {
  * moved */								\
     F(vertical,   { return vertical(L); })
 
+// track() runs a fiber that samples the compass every TRACK_PERIOD ms.
+// When the circle is found it raises an event under an id no CODAL device
+// uses; the script's handler table routes it to the callbacks given to
+// track().
+#define TRACK_PERIOD 50
+#define DEVICE_ID_TRACK 3100
+#define TRACK_EVT_FOUND 1
+
+static Track circle;
+static intptr_t circle_run;     // which call of track() the fiber serves
+
+static void track_loop(void *run) {
+  while ((intptr_t)run == circle_run) {
+    Sample3D s = uBit.compass.getSample();
+    float raw[3] = { (float)s.x, (float)s.y, (float)s.z };
+    if (track_sample(&circle, raw)) Event(DEVICE_ID_TRACK, TRACK_EVT_FOUND);
+    uBit.sleep(TRACK_PERIOD);
+  }
+}
+
+// Handler for the track's events: calls the callback whose upvalue index
+// is the event value (1: found)
+static int track_event(lua_State *L) {
+  lua_pushvalue(L, lua_upvalueindex(luaL_checkint(L, 1)));
+  lua_call(L, 0, 0);
+  return 0;
+}
+
+static int track(lua_State *L) {
+  float up[3];
+  for (int i = 0; i < 3; i++) up[i] = luaL_checknumber(L, i + 1);
+  float eps = luaL_checknumber(L, 4);
+  luaL_checktype(L, 5, LUA_TFUNCTION);
+  luaL_checktype(L, 6, LUA_TFUNCTION);
+  lua_getglobal(L, "microbit");
+  lua_getfield(L, -1, "handler");
+  lua_pushvalue(L, 5);
+  lua_pushvalue(L, 6);
+  lua_pushcclosure(L, track_event, 2);
+  lua_rawseti(L, -2, DEVICE_ID_TRACK);
+  uBit.compass.clearCalibration();
+  track_start(&circle, up, eps);
+  create_fiber(track_loop, (void *)++circle_run);
+  return 0;
+}
+
+static int north(lua_State *L) {
+  float n[3];
+  if (!track_north(&circle, n)) return 0;
+  for (int i = 0; i < 3; i++) lua_pushnumber(L, n[i]);
+  return 3;
+}
+
 // see https://rneacy.dev/mbv2/ubit/compass/
 #define LUA_COMPASS_FUNCTIONS						\
     F(heading,     { int r = uBit.compass.heading();			\
@@ -440,7 +494,14 @@ static int vertical(lua_State *L) {
                     lua_pushinteger(L, sample.y);			\
                     lua_pushinteger(L, sample.z);			\
                     return 3;						\
-                  })
+                  })							\
+/* track(x, y, z, eps, found, lost) -- follow the field's circle across
+ * up (x, y, z) for heading noise eps in radians; found() is called once
+ * the circle is found */						\
+    F(track,      { return track(L); })					\
+/* north() -> x, y, z of the unit vector to magnetic north, perpendicular
+ * to up, or nothing until the circle is found */				\
+    F(north,      { return north(L); })
 
 #define LUA_AUDIO_FUNCTIONS						\
     F(getAudioPin, { lua_pushlightuserdata(L,				\
