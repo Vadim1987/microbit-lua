@@ -424,7 +424,14 @@ lua_patch(ldo.c ldo-maxcalls.patch)
 # Make LUA_NUMBER overridable (LUA_NUMBER_IS_FLOAT) and add float-tuned number
 # formatting/parsing.
 lua_patch(luaconf.h luaconf-float.patch)
+# string.format's %e, %f and %g go to source/lua-format.c: this build's
+# sprintf has no float support.
+lua_patch(luaconf.h luaconf-number-text.patch)
+lua_patch(lstrlib.c lstrlib-number-text.patch)
 lua_patch_apply()
+# Application sources build at -O2; this file is smaller at -Os.
+set_source_files_properties("${CMAKE_SOURCE_DIR}/source/lua-format.c"
+    PROPERTIES COMPILE_OPTIONS "-Os")
 
 set(LUA_CORE_SOURCES
     lapi.c lcode.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c

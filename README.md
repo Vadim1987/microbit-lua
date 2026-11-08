@@ -140,6 +140,22 @@ precompiled bytecode, and, from a fresh boot, a runaway recursion through a
 function with 32 or more locals, which runs out of heap before the call limit.
 
 
+## Numbers as text
+
+The firmware leaves printf's float support out to save flash, so the C
+library writes nothing for a float. `tostring`, `..` and `print` write
+numbers with `lua_float2str` (`source/lua-number2str.c`), in up to 7
+significant digits. `string.format`'s `%f` goes to `source/lua-format.c`
+through `source/lstrlib-number-text.patch` and rounds as C does, for a
+number whose magnitude is below 4e9, to up to 9 decimals:
+`string.format("%.2f", 2.5)` gives `2.50`. `%e`, `%E`, `%g`, `%G` and any
+other `%f` write the magnitude as `print` does, in lowercase. The sign, the
+width and the `-`, `+` and space flags follow C; the `0` and `#` flags are
+ignored.
+
+`tests/lua-format-tests.sh` checks it with the host's C compiler.
+
+
 # Where
 
 The project's home is at
