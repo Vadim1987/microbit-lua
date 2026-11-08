@@ -118,6 +118,22 @@ With `DMESG_SERIAL_DEBUG` enabled, `main()` also prints
 deepest user is the Lua parser (~4 KB) parsing the embedded chunk; see
 `docs/ram-usage.md` for the breakdown and sizing guidance.
 
+### Deep programs
+
+A program that recurses too deep stops with a Lua error, which `pcall` can
+catch, instead of crashing the board:
+
+- **"C stack overflow"** when less than 2,304 bytes of the 8 KB stack are left
+  (more than 5,888 in use). Lua checks before each call it makes from C, each
+  coroutine it resumes and each level of the parser (`source/lua-cstack.c`).
+  Nothing else stops a call that runs past the bottom: it overwrites the heap,
+  and the board panics with 045. Lua's own limit of 200 nested C calls is too
+  high for this stack.
+
+Not covered: pattern matching with hundreds of `?`, `*`, `+` or `-` items, an
+assignment to 150 names, `string.dump` of deeply nested functions and loading
+precompiled bytecode.
+
 
 # Where
 

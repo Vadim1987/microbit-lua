@@ -1,0 +1,36 @@
+--- luaconf.h
++++ luaconf.h
+@@ -467,6 +467,33 @@
+ */
+ #define LUAI_MAXCCALLS		200
+ 
++/*
++@@ luai_cstack says how full the C stack is: 0 with room; 1 too full, a
++@* "C stack overflow" error; 2 past LUA_CSTACK_LAST, 1,024 bytes further
++@* down (source/lua-cstack.c), where luaD_call throws "error in error
++@* handling" instead of calling an error handler again.
++@* The comparison with the margin, luai_cstackroom, is inline because
++@* every step of an ipairs or pairs loop passes the check: as a function
++@* call it made ipairs 10% slower on the board, inline 1%.
++@* luai_cstackcheck runs only within the margin. luai_sp reads the stack
++@* pointer with one instruction on ARM; a host build, for the tests, takes
++@* the frame address instead. luai_stackbottom is the linker's
++@* __StackLimit under Lua's own name, since CODAL declares that symbol
++@* with another type.
++*/
++#define LUAI_CSTACK_MARGIN	2304
++#if defined(__arm__)
++#define luai_sp()	__extension__ ({ unsigned long sp_; \
++	__asm__ volatile ("mov %0, sp" : "=r" (sp_)); sp_; })
++#else
++#define luai_sp()	((unsigned long)__builtin_frame_address(0))
++#endif
++extern char luai_stackbottom[] __asm__("__StackLimit");
++#define luai_cstackroom(sp)	((unsigned long)(sp) >= \
++	(unsigned long)luai_stackbottom + LUAI_CSTACK_MARGIN)
++int luai_cstackcheck (void);
++#define luai_cstack()	(luai_cstackroom(luai_sp()) ? 0 : luai_cstackcheck())
++
+ 
+ /*
+ @@ LUAI_MAXVARS is the maximum number of local variables per function

@@ -1,0 +1,25 @@
+--- ldo.c
++++ ldo.c
+@@ -374,6 +374,13 @@
+     else if (L->nCcalls >= (LUAI_MAXCCALLS + (LUAI_MAXCCALLS>>3)))
+       luaD_throw(L, LUA_ERRERR);  /* error while handing stack error */
+   }
++  else {
++    int full = luai_cstack();
++    if (full > 1)
++      luaD_throw(L, LUA_ERRERR);  /* error while handling a C stack error */
++    else if (full)
++      luaG_runerror(L, "C stack overflow");
++  }
+   if (luaD_precall(L, func, nResults) == PCRLUA)  /* is a Lua function? */
+     luaV_execute(L, 1);  /* call it */
+   L->nCcalls--;
+@@ -420,7 +427,7 @@
+   lua_lock(L);
+   if (L->status != LUA_YIELD && (L->status != 0 || L->ci != L->base_ci))
+       return resume_error(L, "cannot resume non-suspended coroutine");
+-  if (L->nCcalls >= LUAI_MAXCCALLS)
++  if (L->nCcalls >= LUAI_MAXCCALLS || luai_cstack())
+     return resume_error(L, "C stack overflow");
+   luai_userstateresume(L, nargs);
+   lua_assert(L->errfunc == 0);

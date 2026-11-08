@@ -409,6 +409,13 @@ function(lua_patch_apply)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LUA_PATCHES})
 endfunction()
 
+# A C stack too full to go deeper is a "C stack overflow" error, as too many
+# nested C calls are: source/lua-cstack.c measures it.
+lua_patch(luaconf.h luaconf-cstack.patch)
+lua_patch(ldo.c ldo-cstack.patch)
+lua_patch(lparser.c lparser-cstack.patch)
+# A smaller string buffer on the C stack, so the check leaves more of it.
+lua_patch(luaconf.h luaconf-buffer.patch)
 # Make LUA_NUMBER overridable (LUA_NUMBER_IS_FLOAT) and add float-tuned number
 # formatting/parsing.
 lua_patch(luaconf.h luaconf-float.patch)
