@@ -429,8 +429,9 @@ lua_patch(luaconf.h luaconf-float.patch)
 lua_patch(luaconf.h luaconf-number-text.patch)
 lua_patch(lstrlib.c lstrlib-number-text.patch)
 lua_patch_apply()
-# Application sources build at -O2; this file is smaller at -Os.
+# Application sources build at -O2; the number files are smaller at -Os.
 set_source_files_properties("${CMAKE_SOURCE_DIR}/source/lua-format.c"
+    "${CMAKE_SOURCE_DIR}/source/lua-number2str.c"
     PROPERTIES COMPILE_OPTIONS "-Os")
 
 set(LUA_CORE_SOURCES
