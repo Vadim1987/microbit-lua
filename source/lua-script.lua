@@ -509,6 +509,38 @@ function connect(name, timeout)
   serial_session.send = function() end
 end
 
+-- survey() is a reproducible look at how the field changes as a
+-- TPBot moves. It turns in place for three seconds, so that the
+-- circle the field runs round can be fitted, stands for one,
+-- drives straight for three and stands for two. About every
+-- 100 ms it notes the sample, the time in ms, the accelerometer
+-- and the compass, all raw, and it prints them once it has
+-- stopped, so that printing does not hold up the samples.
+local survey_wheels = {
+  [1] = { 50, -50 },
+  [31] = { 0, 0 },
+  [41] = { 40, 40 },
+  [71] = { 0, 0 },
+}
+
+function survey()
+  require("tpbot")
+  require("microbit.compass")
+  local rows = { }
+  for i = 1, 90 do
+    local wheels = survey_wheels[i]
+    if wheels then
+      tpbot.set_motors_speed(wheels[1], wheels[2])
+    end
+    local ax, ay, az = uBit.accelerometer.getSample()
+    local mx, my, mz = uBit.compass.getSample()
+    rows[i] = table.concat({ i, uBit.systemTime(),
+      ax, ay, az, mx, my, mz }, "\t")
+    uBit.sleep(100)
+  end
+  print(table.concat(rows, "\n"))
+end
+
 -- Script-level setup (runs once before the main fiber
 -- is released):
 -- show prompt, initialise the serial RX buffer, and arm
