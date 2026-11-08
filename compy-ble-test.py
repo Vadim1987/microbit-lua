@@ -21,13 +21,12 @@ async def stdin_loop(client):
 
     while True:
         msg = await loop.run_in_executor(None, input, "")
-        data = msg.encode()
-        # length-prefixed frame: [2-byte big-endian length][payload]
-        frame = len(data).to_bytes(2, "big") + data
+        # plain text, a line at a time, as typed on the serial port
+        data = (msg + "\n").encode()
 
-        # chunk the frame to the BLE max payload size
-        for i in range(0, len(frame), BLE_MAX_CHUNK_SIZE):
-            chunk = frame[i:i + BLE_MAX_CHUNK_SIZE]
+        # chunk the line to the BLE max payload size
+        for i in range(0, len(data), BLE_MAX_CHUNK_SIZE):
+            chunk = data[i:i + BLE_MAX_CHUNK_SIZE]
             await client.write_gatt_char(UART_RX_UUID, chunk)
 
 
@@ -55,9 +54,9 @@ async def main():
         # subscribe to notifications
         await ble.start_notify(UART_TX_UUID, ble_rx_handler)
 
-        # zero-length frame: ask the device to greet (banner + first
-        # prompt) once we're subscribed, so the greeting isn't dropped
-        await ble.write_gatt_char(UART_RX_UUID, b"\x00\x00")
+        # an empty line: the device answers with a prompt once we're
+        # subscribed, so the prompt isn't dropped
+        await ble.write_gatt_char(UART_RX_UUID, b"\n")
 
         print("Ready, printing incoming messages as they arrive.\n")
 
