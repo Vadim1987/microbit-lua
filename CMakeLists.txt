@@ -416,6 +416,11 @@ lua_patch(ldo.c ldo-cstack.patch)
 lua_patch(lparser.c lparser-cstack.patch)
 # A smaller string buffer on the C stack, so the check leaves more of it.
 lua_patch(luaconf.h luaconf-buffer.patch)
+# Nested Lua calls stop at about 120 with "stack overflow" instead of running
+# out of heap; an overflow a pcall catches shrinks the array of call frames
+# back, so the next recursion stops at the same depth.
+lua_patch(luaconf.h luaconf-maxcalls.patch)
+lua_patch(ldo.c ldo-maxcalls.patch)
 # Make LUA_NUMBER overridable (LUA_NUMBER_IS_FLOAT) and add float-tuned number
 # formatting/parsing.
 lua_patch(luaconf.h luaconf-float.patch)

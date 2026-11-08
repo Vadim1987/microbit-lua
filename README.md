@@ -129,10 +129,15 @@ catch, instead of crashing the board:
   Nothing else stops a call that runs past the bottom: it overwrites the heap,
   and the board panics with 045. Lua's own limit of 200 nested C calls is too
   high for this stack.
+- **"stack overflow"** after about 120 nested Lua calls (`LUAI_MAXCALLS` is
+  128, `source/luaconf-maxcalls.patch`). These calls use the heap, not the C
+  stack, and with stock Lua's limit of 20,000 the board ran out of heap (panic
+  020) at 501. A tail call, `return f()`, is not counted.
 
 Not covered: pattern matching with hundreds of `?`, `*`, `+` or `-` items, an
-assignment to 150 names, `string.dump` of deeply nested functions and loading
-precompiled bytecode.
+assignment to 150 names, `string.dump` of deeply nested functions, loading
+precompiled bytecode, and, from a fresh boot, a runaway recursion through a
+function with 32 or more locals, which runs out of heap before the call limit.
 
 
 # Where

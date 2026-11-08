@@ -1,0 +1,22 @@
+--- luaconf.h
++++ luaconf.h
+@@ -431,8 +431,18 @@
+ ** CHANGE it if you need really deep recursive calls. This limit is
+ ** arbitrary; its only purpose is to stop infinite recursion before
+ ** exhausting memory.
++** On the micro:bit the array of call frames starts at 8 and doubles as the
++** calls deepen, and Lua checks this limit only when the array grows: at
++** 128 the doubling to 256 frames, 6 KB, stops a recursion at about 120
++** levels. A limit between the array's sizes would stop it at a depth that
++** depends on how the array grew before; after an overflow a pcall
++** catches, ldo.c shrinks the array back to 128 frames, and
++** ldo-maxcalls.patch makes it do so in the last frame that fits too.
++** 256 would stop it at about 250, but the value stack grows with the
++** depth, and a runaway through a function with 20 locals then runs out
++** of heap.
+ */
+-#define LUAI_MAXCALLS	20000
++#define LUAI_MAXCALLS	128
+ 
+ 
+ /*
