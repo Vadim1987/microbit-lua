@@ -22,6 +22,21 @@ extern MicroBit uBit;
 // lives.
 I2C &i2c = uBit.i2c;
 
+// Some arguments are as a rule constants in a program: an image's size and
+// data, a pin or port number, a byte count to read. luaL_constcheck checks
+// one at run time, so that a wrong one typed at the prompt raises a Lua
+// error instead of resetting the board or reading past an array. The checks
+// take flash; set LUA_CONSTANT_ARGUMENT_CHECKS to 0 to leave all of them out,
+// and search for luaL_constcheck to find them.
+#ifndef LUA_CONSTANT_ARGUMENT_CHECKS
+#define LUA_CONSTANT_ARGUMENT_CHECKS 1
+#endif
+#if LUA_CONSTANT_ARGUMENT_CHECKS
+#define luaL_constcheck(L, cond, narg, msg) luaL_argcheck(L, cond, narg, msg)
+#else
+#define luaL_constcheck(L, cond, narg, msg) ((void)0)
+#endif
+
 #define LUA_MICROBIT_FUNCTIONS						\
     F(reset,      { uBit.reset();					\
                     return 0;						\
@@ -94,11 +109,11 @@ Image luaL_checkimage(lua_State *L, int narg) {
   lua_getfield(L, narg, "data");
   kind = lua_type(L, -1);
   // a bigger image than the heap can give stops the board with panic 020
-  luaL_argcheck(L, width * height <= IMAGE_PIXELS_MAX, narg,
-                "an image has at most 4096 pixels, width times height");
-  luaL_argcheck(L, kind == LUA_TSTRING || kind == LUA_TTABLE, narg,
-                "an image's data is a string, or a list of numbers, one "
-                "for each pixel");
+  luaL_constcheck(L, width * height <= IMAGE_PIXELS_MAX, narg,
+                  "an image has at most 4096 pixels, width times height");
+  luaL_constcheck(L, kind == LUA_TSTRING || kind == LUA_TTABLE, narg,
+                  "an image's data is a string, or a list of numbers, one "
+                  "for each pixel");
   Image r(width, height);           // empty when a size is below 0
   uint8_t *pixels = r.getBitmap();
   size_t count = (size_t)r.getWidth() * r.getHeight();
@@ -106,7 +121,7 @@ Image luaL_checkimage(lua_State *L, int narg) {
     size_t size;
     const char *data = lua_tolstring(L, -1, &size);
     memcpy(pixels, data, size < count ? size : count);
-  } else {
+  } else if (kind == LUA_TTABLE) {  // other data, unchecked, stays off
     for (size_t i = 0; i < count; i++) {
       lua_rawgeti(L, -1, (int)i + 1);
       pixels[i] = (uint8_t)lua_tointeger(L, -1);
@@ -656,8 +671,8 @@ Pin *luaL_checkPin(lua_State *L, int narg) {
                     return 0;						\
                   })							\
     F(getPin,     { int pin = luaL_checkint(L, 1);			\
-                    luaL_argcheck(L, 0 <= pin && pin < uBit.io.pins, 1,	\
-                                  "from 0 to 32");			\
+                    luaL_constcheck(L, 0 <= pin && pin < uBit.io.pins,	\
+                                    1, "from 0 to 32");			\
                     lua_pushlightuserdata(L, &uBit.io.pin[pin]);	\
                     return 1;						\
                   })
@@ -721,15 +736,15 @@ ManagedString luaL_checkManagedString(lua_State *L, int narg) {
                     return 1;						\
                   })							\
     F(read,       { int size = luaL_checkint(L, 1);			\
-                    luaL_argcheck(L, 0 <= size && size <= 256, 1,	\
-                                  "0 to 256 bytes");			\
+                    luaL_constcheck(L, 0 <= size && size <= 256, 1,	\
+                                    "0 to 256 bytes");			\
                     lua_pushManagedString(L,				\
                       uBit.serial.read(size, SYNC_SLEEP));		\
                     return 1;						\
                   })							\
     F(readAsync,  { int size = luaL_checkint(L, 1);			\
-                    luaL_argcheck(L, 0 <= size && size <= 256, 1,	\
-                                  "0 to 256 bytes");			\
+                    luaL_constcheck(L, 0 <= size && size <= 256, 1,	\
+                                    "0 to 256 bytes");			\
                     lua_pushManagedString(L,				\
                       uBit.serial.read(size, ASYNC));			\
                     return 1;						\
@@ -874,16 +889,16 @@ extern MicroBitUARTService *uart;
                   })							\
     F(read,       { if(!uart) { lua_pushnil(L); return 1; }		\
                     int size = luaL_checkint(L, 1);			\
-                    luaL_argcheck(L, 0 <= size && size <= 256, 1,	\
-                                  "0 to 256 bytes");			\
+                    luaL_constcheck(L, 0 <= size && size <= 256, 1,	\
+                                    "0 to 256 bytes");			\
                     lua_pushManagedString(L,				\
                       uart->read(size, SYNC_SLEEP));			\
                     return 1;						\
                   })							\
     F(readAsync,  { if(!uart) { lua_pushnil(L); return 1; }		\
                     int size = luaL_checkint(L, 1);			\
-                    luaL_argcheck(L, 0 <= size && size <= 256, 1,	\
-                                  "0 to 256 bytes");			\
+                    luaL_constcheck(L, 0 <= size && size <= 256, 1,	\
+                                    "0 to 256 bytes");			\
                     lua_pushManagedString(L,				\
                       uart->read(size, ASYNC));				\
                     return 1;						\
@@ -942,8 +957,8 @@ extern MicroBitUARTService *uart;
 #define LUA_I2C_FUNCTIONS						\
     F(read,       { int address = luaL_checkint(L, 1);			\
                     int length = luaL_checkint(L, 2);			\
-                    luaL_argcheck(L, 0 <= length && length <= 256, 2,	\
-                                  "0 to 256 bytes");			\
+                    luaL_constcheck(L, 0 <= length && length <= 256,	\
+                                    2, "0 to 256 bytes");		\
                     char data[length];					\
                     if(i2c.read(address, data, length) == MICROBIT_OK){	\
                       lua_pushlstring(L, data, length);			\
@@ -1775,8 +1790,8 @@ const int digitalRJ[] = { 8, 12, 14, 16 };
 
 #define LUA_PLANETX_FUNCTIONS						\
    F(getDigitalPin, { int port = luaL_checkint(L, 1);			\
-                    luaL_argcheck(L, 1 <= port && port <= 4, 1,	\
-                                  "RJ port 1 to 4");			\
+                    luaL_constcheck(L, 1 <= port && port <= 4, 1,	\
+                                    "RJ port 1 to 4");			\
                     int pin = digitalRJ[port - 1];			\
                     lua_pushlightuserdata(L, &uBit.io.pin[pin]);	\
                     return 1;						\
