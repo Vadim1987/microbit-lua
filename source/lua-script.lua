@@ -5,6 +5,7 @@ local audio = require("microbit.audio")
 local display = require("microbit.display")
 local radio = require("microbit.radio")
 local serial = require("microbit.serial")
+local ble = require("microbit.ble.uart")
 
 local heart = {
   width = 10,
@@ -244,15 +245,26 @@ local handler = { }
 
 uBit.handler = handler
 
--- Whatever has been typed since the last look
-local function typing()
+-- Whatever has been typed on a port since the last look
+local function typing(port)
   local chars = { }
-  local c = serial.getCharAsync()
+  local c = port.getCharAsync()
   while c do
     chars[#chars + 1] = c
-    c = serial.getCharAsync()
+    c = port.getCharAsync()
   end
   return table.concat(chars)
+end
+
+-- What is typed on a port goes to take a piece at a time; the port
+-- is watched again only once it is empty
+local function drain(port, take)
+  local text = typing(port)
+  while #text > 0 do
+    take(text)
+    text = typing(port)
+  end
+  port.eventAfterAsync(1)
 end
 
 local function to_console(text)
@@ -260,19 +272,27 @@ local function to_console(text)
 end
 
 -- Where what is typed goes: the console's own session, or the
--- link while connect() has one open. The port is watched again
--- only once it is empty: a piece is dealt with before the next
--- one is taken.
+-- link while connect() has one open. A piece can change it for
+-- the next one, so it is looked up for each.
 local typed_to = to_console
 
 handler[uBit.DEVICE_ID_SERIAL] = function(value)
   if value == uBit.CODAL_SERIAL_EVT_HEAD_MATCH then
-    local text = typing()
-    while #text > 0 do
-      typed_to(text)
-      text = typing()
-    end
-    serial.eventAfterAsync(1)
+    drain(serial, function(text) typed_to(text) end)
+  end
+end
+
+-- A computer can type over Bluetooth too: the Nordic UART service
+-- has a session of its own, as the port does
+local ble_session = make_session(ble.send)
+
+local function to_ble(text)
+  ble_session.run(function() ble_session.keys(text) end)
+end
+
+handler[uBit.MICROBIT_ID_BLE_UART] = function(value)
+  if value == uBit.MICROBIT_UART_S_EVT_HEAD_MATCH then
+    drain(ble, to_ble)
   end
 end
 
@@ -414,7 +434,7 @@ function listen(name)
   end
   listening = true
   radio.enable()
-  while not typing():find("[\3\4]") do
+  while not typing(serial):find("[\3\4]") do
     radio.beacon(awaited)
     local caller = radio.answered(awaited)
     if caller then
@@ -499,3 +519,4 @@ end
 serial_session.prompt()
 serial.getCharAsync()
 serial.eventAfterAsync(1)
+ble.eventAfterAsync(1)
